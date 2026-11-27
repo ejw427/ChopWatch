@@ -27,6 +27,7 @@ import {
   setSaladFlags,
   setSaladPreferences,
   refreshSaladAccount,
+  skipSlowDownload,
 } from "../api.js";
 
 const LEVELS = ["Low", "Medium", "High", "Off"];
@@ -57,8 +58,16 @@ function formatAge(sec) {
 }
 
 function phaseDot(phase) {
-  if (phase === "running" || phase === "downloading" || phase === "initializing") return "ok";
-  if (phase === "finding" || phase === "stopping" || phase === "paused") return "warn";
+  if (phase === "running") return "ok";
+  if (
+    phase === "downloading" ||
+    phase === "initializing" ||
+    phase === "finding" ||
+    phase === "stopping" ||
+    phase === "paused"
+  ) {
+    return "warn";
+  }
   if (phase === "offline" || phase === "stopped") return "bad";
   return "";
 }
@@ -134,6 +143,8 @@ export default function OverviewTab({ snap, setSnap }) {
   const progress = pct(work?.progress ?? work?.pull?.progress);
   const pull = work?.pull || null;
   const downloading = work?.phase === "downloading";
+  const initializing = work?.phase === "initializing";
+  const unpaid = downloading || initializing;
   const gpu0 = snap?.gpu?.gpus?.[0];
   const wallet = snap?.wallet;
   const predictedDay = predictedDailyRate(wallet?.predicted);
@@ -166,6 +177,14 @@ export default function OverviewTab({ snap, setSnap }) {
         : null;
   const sessionFor =
     work?.sessionAgeSec != null ? work.sessionAgeSec : work?.ageSec;
+  const unpaidFor =
+    unpaid && sessionFor != null
+      ? Math.max(0, Number(sessionFor) - (Number(runningFor) || 0))
+      : null;
+  const bailBusy =
+    snap?.downloadBail?.status === "pausing" ||
+    snap?.downloadBail?.status === "bailing" ||
+    snap?.downloadBail?.status === "resuming";
 
   const chopControls = useMemo(
     () => [
@@ -324,24 +343,74 @@ export default function OverviewTab({ snap, setSnap }) {
     const pullSpeed =
       pull?.bytesPerSec != null ? formatBytesPerSec(pull.bytesPerSec) : null;
 
+    const bail = snap?.downloadBail;
+    const bailCountdown = (() => {
+      if (!bail?.enabled) return "off";
+      if (bail.status === "pausing" || bail.status === "bailing") {
+        return "skipping now";
+      }
+      if (bail.status === "resuming") return "re-finding…";
+      if (bail.status === "cooldown") {
+        return bail.reason === "same_instance_blackout"
+          ? "blackout (left alone)"
+          : bail.reason || "cooldown";
+      }
+      if (bail.reason === "grace" && bail.graceLeftSec != null) {
+        return `warm-up ~${formatDuration(bail.graceLeftSec)}`;
+      }
+      const bits = [
+        bail.ageLeftSec != null ? `age ${formatDuration(bail.ageLeftSec)}` : null,
+        downloading && bail.etaPersistLeftSec != null && bail.maxEtaMinutes
+          ? `ETA clock ${formatDuration(bail.etaPersistLeftSec)}`
+          : null,
+        bail.stallLeftSec != null ? `stall ${formatDuration(bail.stallLeftSec)}` : null,
+      ].filter(Boolean);
+      return bits.length ? bits.join(" · ") : bail.status || "watching";
+    })();
+
+    const skipControl = unpaid
+      ? [
+          {
+            id: "skipUnpaid",
+            type: "button",
+            danger: true,
+            label: downloading ? "Skip download" : "Skip setup",
+            help: "Pause→resume Salad to drop this unpaid job and re-roll Finding Job. Works even while paused.",
+            group: "bail",
+            groupLabel: "Unpaid re-roll",
+            groupHelp: "Downloads and initializing are unpaid until Running.",
+            kind: "skipBail",
+            disabled: bailBusy,
+          },
+        ]
+      : [];
+
     return [
-      ...(downloading
+      ...(unpaid
         ? [
             {
               id: "downloadInfo",
-              label: "Download",
-              value:
-                [
-                  progress != null ? `${progress}%` : null,
-                  pullSize,
-                  pullEta ? `~${pullEta}` : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ") || "pulling…",
-              tone: "ok",
-              body:
-                "Live container image pull from Bowl SpinnerPullProgressEvent lines: percent, bytes done/total, Salad’s ETA, and transfer rate. Image digests and customer workload IDs are not shown. Downloads are unpaid until Running.",
+              label: downloading ? "Download" : "Unpaid setup",
+              value: downloading
+                ? [
+                    progress != null ? `${progress}%` : null,
+                    pullSize,
+                    pullEta ? `~${pullEta}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || "pulling…"
+                : unpaidFor != null
+                  ? `unpaid ${formatDuration(unpaidFor)}`
+                  : "initializing…",
+              tone: "warn",
+              body: downloading
+                ? "Live container image pull from Bowl SpinnerPullProgressEvent lines: percent, bytes done/total, Salad’s ETA, and transfer rate. Image digests and customer workload IDs are not shown. Downloads are unpaid until Running."
+                : "Salad is initializing after (or instead of) a pull. Still unpaid until Running. Use Skip setup or auto-bail if it stalls past your thresholds.",
               rows: [
+                {
+                  label: "Unpaid for",
+                  value: unpaidFor != null ? formatDuration(unpaidFor) : "—",
+                },
                 {
                   label: "Progress",
                   value: progress != null ? `${progress}%` : "—",
@@ -371,13 +440,11 @@ export default function OverviewTab({ snap, setSnap }) {
                 },
                 {
                   label: "Auto-bail",
-                  value: snap?.downloadBail?.enabled
-                    ? snap.downloadBail.status || "on"
-                    : "off",
+                  value: bailCountdown,
                 },
                 { label: "Peak pull", value: peakPull },
               ],
-              controls: chopControls,
+              controls: [...skipControl, ...chopControls],
             },
           ]
         : []),
@@ -843,6 +910,9 @@ export default function OverviewTab({ snap, setSnap }) {
     progress,
     pull,
     downloading,
+    unpaid,
+    unpaidFor,
+    bailBusy,
     runningFor,
     sessionFor,
     gpu0,
@@ -869,9 +939,9 @@ export default function OverviewTab({ snap, setSnap }) {
   ]);
 
   // Hero strip: job lifecycle (rows 1–2) + hardware/earnings pulse (row 3).
+  // Keep at most 18 pills (3×6). Download/unpaid progress lives on the Download gauge.
   const heroFacts = useMemo(() => {
     const ids = [
-      ...(downloading ? ["downloadInfo"] : []),
       "phase",
       "state",
       "instance",
@@ -893,7 +963,7 @@ export default function OverviewTab({ snap, setSnap }) {
     ];
     const byId = new Map(facts.map((f) => [f.id, f]));
     return ids.map((id) => byId.get(id)).filter(Boolean);
-  }, [facts, downloading]);
+  }, [facts]);
 
   const procModal = useMemo(() => {
     if (!procKey) return null;
@@ -956,13 +1026,21 @@ export default function OverviewTab({ snap, setSnap }) {
       session?.peakProgress != null
         ? Math.round(session.peakProgress * 100)
         : null;
+    const bail = snap?.downloadBail;
     const downloadHint = downloading
       ? [progress != null ? `${progress}%` : null, sizeHint, etaHint]
           .filter(Boolean)
           .join(" · ") || "pulling…"
-      : [work?.phase || "idle", peakPullPct != null ? `peak ${peakPullPct}%` : null]
-          .filter(Boolean)
-          .join(" · ");
+      : initializing
+        ? [
+            "unpaid init",
+            unpaidFor != null ? formatDuration(unpaidFor) : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")
+        : [work?.phase || "idle", peakPullPct != null ? `peak ${peakPullPct}%` : null]
+            .filter(Boolean)
+            .join(" · ");
 
     const list = [
       {
@@ -971,12 +1049,16 @@ export default function OverviewTab({ snap, setSnap }) {
         value: downloading ? progress : null,
         theme: "violet",
         hint: downloadHint,
-        title: "Job image download: size, speed, and ETA from Bowl pull events.",
-        body: downloading
-          ? "Live container image pull from Bowl SpinnerPullProgressEvent (bytes done/total, B/s, ETA) plus Progress(...). Not GPU activity. Image digests and customer workload IDs are hidden. Downloads are unpaid until Running — use Skip download or auto-bail to re-roll."
-          : "No active image pull right now. This gauge stays visible so you can spot unpaid download time as soon as Salad starts Pulling. Peak pull is from the latest session when available.",
+        title: "Job image download / unpaid setup: size, speed, and ETA from Bowl pull events.",
+        body: unpaid
+          ? "Unpaid until Running. Live pull comes from Bowl SpinnerPullProgressEvent (bytes done/total, B/s, ETA) plus Progress(...). Image digests and customer workload IDs are hidden. Use Skip or auto-bail to re-roll Finding Job."
+          : "No active unpaid pull/setup right now. This gauge stays visible so you can spot unpaid time as soon as Salad starts Pulling or Initializing. Peak pull is from the latest session when available.",
         rows: [
           { label: "Phase", value: work?.phase || "—" },
+          {
+            label: "Unpaid for",
+            value: unpaidFor != null ? formatDuration(unpaidFor) : "—",
+          },
           {
             label: "Progress",
             value: downloading && progress != null ? `${progress}%` : "—",
@@ -1007,11 +1089,32 @@ export default function OverviewTab({ snap, setSnap }) {
           },
           {
             label: "Auto-bail",
-            value: snap?.downloadBail?.enabled
-              ? snap.downloadBail.status || "on"
+            value: bail?.enabled
+              ? [
+                  bail.status || "on",
+                  bail.reason === "grace" && bail.graceLeftSec != null
+                    ? `warm-up ${formatDuration(bail.graceLeftSec)}`
+                    : null,
+                  bail.ageLeftSec != null
+                    ? `age ${formatDuration(bail.ageLeftSec)}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
               : "off",
           },
         ],
+        actions: unpaid
+          ? [
+              {
+                id: "skip",
+                label: downloading ? "Skip download" : "Skip setup",
+                danger: true,
+                disabled: bailBusy,
+                kind: "skipBail",
+              },
+            ]
+          : undefined,
       },
     ];
     list.push(
@@ -1150,6 +1253,10 @@ export default function OverviewTab({ snap, setSnap }) {
     return list;
   }, [
     downloading,
+    initializing,
+    unpaid,
+    unpaidFor,
+    bailBusy,
     progress,
     pull,
     work,
@@ -1206,6 +1313,11 @@ export default function OverviewTab({ snap, setSnap }) {
       setSnap?.((s) => (s ? { ...s, saladAccount: account } : s));
       return { message: "API balance refreshed." };
     }
+    if (action.kind === "skipBail") {
+      await skipSlowDownload();
+      await refreshSnap();
+      return { message: "Skipping unpaid work — Salad will re-find a job." };
+    }
     throw new Error("Unknown action");
   }
 
@@ -1232,7 +1344,21 @@ export default function OverviewTab({ snap, setSnap }) {
             <span className={`dot ${phaseDot(work?.phase)}`} style={{ marginRight: 10 }} />
             {work?.title || "Waiting for snapshot…"}
           </h2>
-          <p className="phase-detail">{work?.detail || snap?.product?.disclaimer}</p>
+          <p className="phase-detail">
+            {unpaid ? (
+              <>
+                <span className="phase-unpaid-tag">Unpaid</span>
+                {unpaidFor != null ? ` · ${formatDuration(unpaidFor)}` : null}
+                {downloading && pull?.etaSec != null
+                  ? ` · ETA ~${formatDuration(pull.etaSec)}`
+                  : null}
+                {downloading && progress != null ? ` · ${progress}%` : null}
+                {work?.detail ? ` — ${work.detail}` : null}
+              </>
+            ) : (
+              work?.detail || snap?.product?.disclaimer
+            )}
+          </p>
 
           <div className="hero-metrics" aria-label="Live metrics">
             <div
@@ -1248,21 +1374,36 @@ export default function OverviewTab({ snap, setSnap }) {
             </div>
             <button
               type="button"
-              className="hero-metric hero-earn"
+              className={`hero-metric hero-earn${unpaid ? " unpaid" : ""}${
+                work?.phase === "running" ? " live" : ""
+              }`}
               onClick={() => {
                 setProcKey(null);
                 setModalId("wallet");
               }}
-              title="Bowl Wallet balance and Salad’s predicted daily earnings. Click for details."
+              title={
+                unpaid
+                  ? "Unpaid until Running — predicted rate is not live income. Click for wallet details."
+                  : "Bowl Wallet balance and Salad’s predicted daily earnings. Click for details."
+              }
             >
               <div className="hero-earn-head">
-                <span className="hero-earn-label">Making</span>
+                <span className="hero-earn-label">{unpaid ? "Unpaid" : "Making"}</span>
                 <span className="hero-earn-age">
-                  {wallet ? formatAge(wallet.ageSec) : "no Wallet"}
+                  {unpaid && unpaidFor != null
+                    ? formatDuration(unpaidFor)
+                    : wallet
+                      ? formatAge(wallet.ageSec)
+                      : "no Wallet"}
                 </span>
               </div>
               <div className="hero-earn-primary">
-                {predictedDay != null ? (
+                {unpaid ? (
+                  <>
+                    <span className="hero-earn-amount">$0</span>
+                    <span className="hero-earn-unit">now</span>
+                  </>
+                ) : predictedDay != null ? (
                   <>
                     <span className="hero-earn-amount">{formatMoney(predictedDay)}</span>
                     <span className="hero-earn-unit">/day</span>
@@ -1272,23 +1413,40 @@ export default function OverviewTab({ snap, setSnap }) {
                 )}
               </div>
               <div className="hero-earn-meta">
-                <span>
-                  {predictedHour != null
-                    ? `${formatMoney(predictedHour)}/hr`
-                    : "—/hr"}
-                </span>
-                <span className="hero-earn-sep" aria-hidden="true">
-                  ·
-                </span>
-                <span>{formatMoney(wallet?.current)}</span>
-                {apiBalance != null ? (
+                {unpaid ? (
                   <>
+                    <span>
+                      pred{" "}
+                      {predictedHour != null
+                        ? `${formatMoney(predictedHour)}/hr`
+                        : "—/hr"}
+                    </span>
                     <span className="hero-earn-sep" aria-hidden="true">
                       ·
                     </span>
-                    <span>API {formatMoney(apiBalance)}</span>
+                    <span>until Running</span>
                   </>
-                ) : null}
+                ) : (
+                  <>
+                    <span>
+                      {predictedHour != null
+                        ? `${formatMoney(predictedHour)}/hr`
+                        : "—/hr"}
+                    </span>
+                    <span className="hero-earn-sep" aria-hidden="true">
+                      ·
+                    </span>
+                    <span>{formatMoney(wallet?.current)}</span>
+                    {apiBalance != null ? (
+                      <>
+                        <span className="hero-earn-sep" aria-hidden="true">
+                          ·
+                        </span>
+                        <span>API {formatMoney(apiBalance)}</span>
+                      </>
+                    ) : null}
+                  </>
+                )}
               </div>
             </button>
           </div>
@@ -1487,6 +1645,8 @@ export default function OverviewTab({ snap, setSnap }) {
         value={gaugeModal?.value}
         hint={gaugeModal?.hint}
         theme={gaugeModal?.theme}
+        actions={gaugeModal?.actions}
+        onAction={onModalAction}
         onClose={() => setGaugeId(null)}
       />
     </>

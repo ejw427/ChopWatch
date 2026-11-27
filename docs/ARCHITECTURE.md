@@ -116,8 +116,8 @@ flowchart TD
 | 4 | `wallet.js` | Bowl `Wallet: Current(...), Predicted(...)` + heartbeat age |
 | 5 | `gpu.js` / `host.js` / `disk.js` | nvidia-smi, CPU/RAM, disk (skips `blockedFiles`) |
 | 6 | `chopHours.js` | Integrate active samples; **gaps capped 15m** |
-| 7 | `alerts.js` | Phase-change debounce **20s**; toast + UI event |
-| 8 | `downloadBail.js` | Snapshot status for slow-download bail (auto action runs in 5s watcher) |
+| 7 | `alerts.js` | Snapshot **reads** last alert only; watcher owns phase-change / startup toasts (**20s** debounce) |
+| 8 | `downloadBail.js` | Snapshot status for unpaid download/init bail (auto action runs in 5s watcher) |
 | 9 | `saladApi.js` | Opt-in balance / machines / 30-day history |
 
 ### Key Salad paths
@@ -192,17 +192,19 @@ ChopWatch does **not** invent Bowl Running/Pulling — those still come from Sal
 ```mermaid
 flowchart LR
   Watcher["Helper 5s watcher"] --> Eval["alerts.js<br/>compare lastPhase"]
-  Eval --> Debounce{"changed + 20s debounce?"}
-  Debounce -->|yes + toast on| Toast[Windows NotifyIcon balloon]
+  Eval --> Debounce{"changed / startup + 20s debounce?"}
+  Debounce -->|yes| Store["runtime lastAlertEvent"]
+  Store -->|browser / npm start| Toast[Windows NotifyIcon balloon]
+  Store -->|desktop CHOPWATCH_DESKTOP=1| Tray[Electron tray.displayBalloon]
   UI["UI 3s poll"] --> Hint{"new alert.at + browser hint?"}
   Hint -->|yes| Notif[Browser Notification API]
 ```
 
-Alertable phases include `running`, `downloading`, `initializing`, `finding`, `paused`, `offline`, `stopped`.
+Watcher-only evaluation (snapshot is read-only via `readLastAlertEvent`) so toasts do not double-fire. Desktop sets `CHOPWATCH_DESKTOP=1` so the helper skips PowerShell balloons and Electron owns AFK tray tips. Startup announces Running / Downloading / Initializing / Paused / Offline once. Alertable phases also include `finding` and `stopped`.
 
 ### Slow-download bail (re-roll unpaid pulls)
 
-Container downloads are unpaid until **Running**, but auto-bail stays patient. When enabled (default), the 5s watcher calls `downloadBail.js` with: a **grace warm-up** (default 10m, no auto-skip — speed often ramps), then skip only if **age ≥ max** (default 30m), **ETA stays over max ETA** for a persist window (defaults 45m ETA / 8m persist; improving ETA resets the clock), or **progress stalled** (default 10m). ChopWatch writes `SALAD_CHOPPING_INDEFINITELY_PAUSED=true`, waits ~8s, then clears the flag. The **same** instance is re-rolled at most **once**, then left alone (~90m blackout) so we don’t dump jobs Salad keeps assigning. Cooldown between different skips defaults to 25m. Overview **Skip download** still forces a manual re-roll.
+Container downloads and **Initializing** are unpaid until **Running**, but auto-bail stays patient. When enabled (default), the 5s watcher calls `downloadBail.js` with: a **grace warm-up** (default 10m, no auto-skip — speed often ramps), then skip only if **age ≥ max** (default 30m), **ETA stays over max ETA** for a persist window (defaults 45m ETA / 8m persist; improving ETA resets the clock; download only), or **progress stalled** (default 10m). ChopWatch writes `SALAD_CHOPPING_INDEFINITELY_PAUSED=true`, waits ~8s, then clears the flag. The **same** instance is re-rolled at most **once**, then left alone (~90m blackout) so we don’t dump jobs Salad keeps assigning. Cooldown between different skips defaults to 25m. Overview **Skip download / Skip setup** forces a manual re-roll even while paused.
 
 ```mermaid
 flowchart LR

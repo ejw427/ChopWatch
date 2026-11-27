@@ -2,7 +2,7 @@
 
 Local dashboard for Salad chopping on this PC.
 
-Shows what Salad is *doing* (lifecycle), GPU/host load, Bowl wallet lines, chopping-hour estimates, phase alerts, and — if you opt in — official Salad API balance/history. Overview can pause/resume chopping, edit allowlisted Salad preferences, and **skip slow unpaid downloads** (auto-bail or manual Skip) so Salad re-rolls Finding Job. **Not** customer workload identity or container contents.
+Shows what Salad is *doing* (lifecycle), GPU/host load, Bowl wallet lines, chopping-hour estimates, phase alerts, and — if you opt in — official Salad API balance/history. Overview makes **unpaid vs earning** obvious (Downloading/Initializing → $0 until Running), can pause/resume chopping with confirmation, edit allowlisted Salad preferences, and **skip slow unpaid downloads/setup** (auto-bail or manual Skip) so Salad re-rolls Finding Job. AFK phase toasts work from the helper (browser) or Electron tray (desktop). **Not** customer workload identity or container contents.
 
 **Repo:** https://github.com/ejw427/ChopWatch  
 Day-to-day branch: `dev` · stable line: `main`

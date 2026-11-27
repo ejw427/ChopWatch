@@ -66,11 +66,18 @@ function pullSummary(pull) {
   return bits.length ? bits.join(" · ") : null;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function bailHint(downloadBail, phase, pull) {
-  if (phase !== "downloading") return null;
-  const summary = pullSummary(pull);
+  if (phase !== "downloading" && phase !== "initializing") return null;
+  const summary = phase === "downloading" ? pullSummary(pull) : null;
+  const unpaidLabel =
+    phase === "initializing" ? "Initializing is unpaid" : "Unpaid until Running";
+
   if (downloadBail?.status === "pausing" || downloadBail?.status === "bailing") {
-    return "Skipping slow download — pausing Salad, then resuming Finding Job…";
+    return "Skipping unpaid work — pausing Salad, then resuming Finding Job…";
   }
   if (downloadBail?.status === "resuming") {
     return "Re-finding job after skip…";
@@ -78,7 +85,7 @@ function bailHint(downloadBail, phase, pull) {
   if (downloadBail?.status === "disabled") {
     return summary
       ? `${summary} · Auto-bail off — use Skip to drop this unpaid pull.`
-      : "Auto-bail off — use Skip download to drop this unpaid pull.";
+      : `Auto-bail off — use Skip to drop this unpaid ${phase === "initializing" ? "init" : "pull"}.`;
   }
   if (downloadBail?.status === "cooldown") {
     const why =
@@ -89,13 +96,18 @@ function bailHint(downloadBail, phase, pull) {
           : "Cooldown before next auto-bail (avoid dumping jobs).";
     return summary ? `${summary} · ${why}` : why;
   }
+  if (downloadBail?.reason === "user_paused") {
+    return summary
+      ? `${summary} · Paused — Skip still re-rolls Finding Job.`
+      : "Paused — Skip still re-rolls Finding Job.";
+  }
   if (downloadBail?.enabled && downloadBail.status === "watching") {
     if (downloadBail.reason === "grace") {
       const g = formatLeft(downloadBail.graceLeftSec);
       const line = g
         ? `Warm-up (~${g}) — giving speed a chance to climb.`
         : "Warm-up — giving speed a chance to climb.";
-      return summary ? `${summary} · ${line}` : line;
+      return summary ? `${summary} · ${line}` : `${unpaidLabel} · ${line}`;
     }
     if (downloadBail.reason === "accepted_after_reroll") {
       return summary
@@ -107,7 +119,7 @@ function bailHint(downloadBail, phase, pull) {
     const persist = formatLeft(downloadBail.etaPersistLeftSec);
     const auto = [
       age ? `~${age} max age` : null,
-      persist && downloadBail.maxEtaMinutes
+      phase === "downloading" && persist && downloadBail.maxEtaMinutes
         ? `ETA>${downloadBail.maxEtaMinutes}m for ~${persist}`
         : null,
       stall ? `~${stall} stall` : null,
@@ -116,15 +128,39 @@ function bailHint(downloadBail, phase, pull) {
       .join(", ");
     const line = auto
       ? `Patient auto-bail if still stuck (${auto}).`
-      : "Watching this pull — unpaid until Running.";
+      : `${unpaidLabel} — watching.`;
     return summary ? `${summary} · ${line}` : line;
   }
   return summary
-    ? `${summary} · Unpaid until Running — Skip re-rolls Finding Job.`
-    : "Downloads are unpaid — Skip drops this pull and re-rolls Finding Job.";
+    ? `${summary} · ${unpaidLabel} — Skip re-rolls Finding Job.`
+    : `${unpaidLabel} — Skip drops this job and re-rolls Finding Job.`;
 }
 
-function modeMeta({ paused, phase, saladUp }) {
+function modeMeta({ paused, phase, saladUp, bailBusy, pending }) {
+  if (bailBusy) {
+    return {
+      id: "bailing",
+      label: "Skipping unpaid work",
+      blurb: "ChopWatch is pause→resume cycling Salad so it re-finds a job. Controls unlock when that finishes.",
+      tone: "unpaid",
+    };
+  }
+  if (pending === "pause") {
+    return {
+      id: "pendingPause",
+      label: "Pausing…",
+      blurb: "Writing Salad’s indefinite-pause flag — waiting for Bowl to reflect it.",
+      tone: "paused",
+    };
+  }
+  if (pending === "resume") {
+    return {
+      id: "pendingResume",
+      label: "Resuming…",
+      blurb: "Clearing indefinite pause — waiting for Salad to leave paused.",
+      tone: "live",
+    };
+  }
   if (paused) {
     return {
       id: "pauseIndefinitely",
@@ -133,11 +169,27 @@ function modeMeta({ paused, phase, saladUp }) {
       tone: "paused",
     };
   }
-  if (phase === "running" || phase === "downloading" || phase === "initializing") {
+  if (phase === "downloading") {
+    return {
+      id: "unpaidDownload",
+      label: "Unpaid download",
+      blurb: "Pulling a job image — $0 until Running. Skip or auto-bail can re-roll Finding Job.",
+      tone: "unpaid",
+    };
+  }
+  if (phase === "initializing") {
+    return {
+      id: "unpaidInit",
+      label: "Unpaid setup",
+      blurb: "Initializing after pull — still unpaid. Skip re-rolls if it stalls.",
+      tone: "unpaid",
+    };
+  }
+  if (phase === "running") {
     return {
       id: "chopNow",
       label: "Chopping now",
-      blurb: "Salad is taking work until you pause, or Auto-Stop kicks in.",
+      blurb: "Salad is earning on this job until you pause, or Auto-Stop kicks in.",
       tone: "live",
     };
   }
@@ -166,30 +218,48 @@ export default function ChopCommandBar({
   onUpdated,
 }) {
   const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState(null);
   const [msg, setMsg] = useState("");
-  const mode = modeMeta({ paused, phase, saladUp });
-  const downloading = phase === "downloading";
+  const unpaid = phase === "downloading" || phase === "initializing";
   const bailBusy =
     downloadBail?.status === "pausing" ||
     downloadBail?.status === "bailing" ||
     downloadBail?.status === "resuming";
+  const mode = modeMeta({ paused, phase, saladUp, bailBusy, pending });
   const hint = bailHint(downloadBail, phase, pull);
+  const choppingLive = mode.id === "chopNow";
+
+  async function waitForPaused(wantPaused) {
+    const deadline = Date.now() + 10_000;
+    while (Date.now() < deadline) {
+      const next = await onUpdated?.();
+      if (Boolean(next?.salad?.choppingPaused) === wantPaused) return true;
+      await sleep(450);
+    }
+    return false;
+  }
 
   async function setPaused(nextPaused) {
-    if (busy) return;
+    if (busy || bailBusy) return;
     setBusy(true);
+    setPending(nextPaused ? "pause" : "resume");
     setMsg("");
     try {
       await setSaladFlags({ SALAD_CHOPPING_INDEFINITELY_PAUSED: nextPaused });
-      await onUpdated?.();
+      const ok = await waitForPaused(nextPaused);
       setMsg(
         nextPaused
-          ? "Pause Indefinitely written to Salad."
-          : "Chop Now — indefinite pause cleared.",
+          ? ok
+            ? "Pause Indefinitely confirmed in Salad."
+            : "Pause written — Salad may take a moment to show paused."
+          : ok
+            ? "Chop Now confirmed — indefinite pause cleared."
+            : "Resume written — waiting for Salad to leave paused.",
       );
     } catch (err) {
       setMsg(err instanceof Error ? err.message : String(err));
     } finally {
+      setPending(null);
       setBusy(false);
     }
   }
@@ -201,7 +271,7 @@ export default function ChopCommandBar({
     try {
       await skipSlowDownload();
       await onUpdated?.();
-      setMsg("Skipping unpaid download — Salad will re-find a job.");
+      setMsg("Skipping unpaid work — Salad will re-find a job.");
     } catch (err) {
       setMsg(err instanceof Error ? err.message : String(err));
     } finally {
@@ -222,12 +292,12 @@ export default function ChopCommandBar({
         </div>
       </div>
 
-      <div className={`chop-command-actions${downloading ? " with-skip" : ""}`}>
+      <div className={`chop-command-actions${unpaid ? " with-skip" : ""}`}>
         <button
           type="button"
-          className={`chop-cmd chop-cmd-go${mode.id === "chopNow" ? " active" : ""}`}
-          disabled={busy || mode.id === "chopNow"}
-          aria-pressed={mode.id === "chopNow"}
+          className={`chop-cmd chop-cmd-go${choppingLive ? " active" : ""}`}
+          disabled={busy || bailBusy || choppingLive || pending != null}
+          aria-pressed={choppingLive}
           onClick={() => setPaused(false)}
         >
           <span className="chop-cmd-glyph">
@@ -236,7 +306,11 @@ export default function ChopCommandBar({
           <span className="chop-cmd-text">
             <span className="chop-cmd-title">Chop Now</span>
             <span className="chop-cmd-sub">
-              {mode.id === "chopNow" ? "Currently chopping" : "Clear indefinite pause"}
+              {pending === "resume"
+                ? "Confirming…"
+                : choppingLive
+                  ? "Currently earning"
+                  : "Clear indefinite pause"}
             </span>
           </span>
         </button>
@@ -244,7 +318,7 @@ export default function ChopCommandBar({
         <button
           type="button"
           className={`chop-cmd chop-cmd-stop${mode.id === "pauseIndefinitely" ? " active" : ""}`}
-          disabled={busy || paused}
+          disabled={busy || bailBusy || paused || pending != null}
           aria-pressed={paused}
           onClick={() => setPaused(true)}
         >
@@ -254,27 +328,33 @@ export default function ChopCommandBar({
           <span className="chop-cmd-text">
             <span className="chop-cmd-title">Pause Indefinitely</span>
             <span className="chop-cmd-sub">
-              {paused ? "Currently paused" : "Stop until you resume"}
+              {pending === "pause"
+                ? "Confirming…"
+                : paused
+                  ? "Currently paused"
+                  : "Stop until you resume"}
             </span>
           </span>
         </button>
 
-        {downloading ? (
+        {unpaid ? (
           <button
             type="button"
             className={`chop-cmd chop-cmd-skip${bailBusy ? " active" : ""}`}
-            disabled={busy || bailBusy || paused}
+            disabled={busy || bailBusy}
             onClick={onSkipDownload}
           >
             <span className="chop-cmd-glyph">
               <SkipIcon />
             </span>
             <span className="chop-cmd-text">
-              <span className="chop-cmd-title">Skip download</span>
+              <span className="chop-cmd-title">
+                {phase === "initializing" ? "Skip setup" : "Skip download"}
+              </span>
               <span className="chop-cmd-sub">
                 {bailBusy
                   ? "Re-rolling now…"
-                  : "Drop unpaid pull · find another job"}
+                  : "Drop unpaid work · find another job"}
               </span>
             </span>
           </button>

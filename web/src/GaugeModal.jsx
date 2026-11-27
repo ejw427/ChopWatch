@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import GaugeDial from "./GaugeDial.jsx";
 
 const STAGE_GLOW = {
@@ -20,18 +20,39 @@ export default function GaugeModal({
   hint,
   theme = "lime",
   max = 100,
+  actions,
+  onAction,
   onClose,
 }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+
   useEffect(() => {
     if (!open) return undefined;
+    setMsg("");
+    setBusy(false);
     const onKey = (e) => {
       if (e.key === "Escape") onClose?.();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, onClose, title]);
 
   if (!open) return null;
+
+  async function run(action) {
+    if (!onAction || busy || action.disabled) return;
+    setBusy(true);
+    setMsg("");
+    try {
+      const result = await onAction(action);
+      setMsg(result?.message || "Updated.");
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
@@ -79,6 +100,24 @@ export default function GaugeModal({
             ))}
           </dl>
         )}
+
+        {actions?.length ? (
+          <div className="gauge-modal-actions">
+            {actions.map((a) => (
+              <button
+                key={a.id || a.label}
+                type="button"
+                className={`modal-action${a.danger ? " danger" : ""}${a.primary ? " primary" : ""}`}
+                disabled={busy || a.disabled}
+                onClick={() => run(a)}
+              >
+                {a.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        {msg ? <p className="modal-msg">{msg}</p> : null}
 
         <p className="modal-note gauge-modal-note">
           Values refresh with the live snapshot — the needle and arc ease to each new reading.
