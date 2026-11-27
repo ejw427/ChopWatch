@@ -57,6 +57,7 @@ function markdownToHtml(md) {
   let codeLines = [];
   let listType = null; // "ul" | "ol"
   let para = [];
+  let hasMermaid = false;
 
   const flushPara = () => {
     if (!para.length) return;
@@ -72,9 +73,16 @@ function markdownToHtml(md) {
 
   const flushCode = () => {
     if (!inCode) return;
-    const body = escapeHtml(codeLines.join("\n"));
-    const cls = codeLang ? ` class="language-${escapeHtml(codeLang)}"` : "";
-    out.push(`<pre><code${cls}>${body}</code></pre>`);
+    const raw = codeLines.join("\n");
+    if (codeLang.toLowerCase() === "mermaid") {
+      hasMermaid = true;
+      // Mermaid reads textContent; escape so </script>-like sequences stay safe in HTML.
+      out.push(`<pre class="mermaid">${escapeHtml(raw)}</pre>`);
+    } else {
+      const body = escapeHtml(raw);
+      const cls = codeLang ? ` class="language-${escapeHtml(codeLang)}"` : "";
+      out.push(`<pre><code${cls}>${body}</code></pre>`);
+    }
     inCode = false;
     codeLang = "";
     codeLines = [];
@@ -191,10 +199,52 @@ function markdownToHtml(md) {
   flushPara();
   flushList();
   flushCode();
-  return out.join("\n");
+  return { html: out.join("\n"), hasMermaid };
 }
 
-function pageShell(title, bodyHtml, sourceName) {
+function pageShell(title, bodyHtml, sourceName, { hasMermaid = false } = {}) {
+  const mermaidCss = hasMermaid
+    ? `
+    main { max-width: 58rem; }
+    pre.mermaid {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem 1rem;
+      overflow-x: auto;
+      text-align: center;
+      color: var(--text);
+    }
+    pre.mermaid svg { max-width: 100%; height: auto; }
+`
+    : "";
+  const mermaidScript = hasMermaid
+    ? `
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "dark",
+      securityLevel: "strict",
+      flowchart: { htmlLabels: true, curve: "basis" },
+      themeVariables: {
+        primaryColor: "#1a3d2e",
+        primaryTextColor: "#e8f0ea",
+        primaryBorderColor: "#3dcf8e",
+        lineColor: "#9ab0a4",
+        secondaryColor: "#18201c",
+        tertiaryColor: "#0f1412",
+        background: "#18201c",
+        mainBkg: "#1a3d2e",
+        nodeBorder: "#3dcf8e",
+        clusterBkg: "#141c18",
+        titleColor: "#3dcf8e",
+        edgeLabelBackground: "#18201c"
+      }
+    });
+  </script>`
+    : "";
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -228,6 +278,7 @@ function pageShell(title, bodyHtml, sourceName) {
       margin: 0 auto;
       padding: 2.5rem 1.25rem 4rem;
     }
+    ${mermaidCss}
     .meta {
       font-size: 0.8rem;
       color: #8aa090;
@@ -329,6 +380,7 @@ function pageShell(title, bodyHtml, sourceName) {
     <p class="meta">Generated from <code>${escapeHtml(sourceName)}</code> · do not edit by hand</p>
     ${bodyHtml}
   </main>
+  ${mermaidScript}
 </body>
 </html>
 `;
@@ -350,7 +402,8 @@ export function convertMarkdownFile(mdPath) {
   const md = fs.readFileSync(abs, "utf8");
   const base = path.basename(abs);
   const title = titleFromMarkdown(md, base);
-  const html = pageShell(title, markdownToHtml(md), base);
+  const { html: bodyHtml, hasMermaid } = markdownToHtml(md);
+  const html = pageShell(title, bodyHtml, base, { hasMermaid });
   const outPath = abs.replace(/\.md$/i, ".html");
   fs.writeFileSync(outPath, html, "utf8");
   return outPath;

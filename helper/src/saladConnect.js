@@ -1,16 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import puppeteer from "puppeteer-core";
 import {
   writeSecrets,
   writeSettings,
   authCookiePresent,
+  getDataDir,
 } from "./store.js";
 import { invalidateSaladApiCache, fetchSaladAccount } from "./saladApi.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const profileDir = path.join(__dirname, "..", "data", "salad-browser-profile");
+const profileDir = path.join(getDataDir(), "salad-browser-profile");
 
 let connectJob = {
   status: "idle",

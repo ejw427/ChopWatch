@@ -1,6 +1,6 @@
 {
   "name": "chopwatch",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "private": true,
   "description": "Read-only local Salad chopping dashboard",
   "author": "Eric Welch",
@@ -16,10 +16,15 @@
     "desktop": "npm start --prefix desktop",
     "start": "concurrently -k -n helper,web -c green,cyan \"npm run helper\" \"npm run web\"",
     "app": "concurrently -k -n web,desktop -c cyan,magenta \"npm run web\" \"npm run desktop\"",
+    "stop": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/dev-stop.ps1",
+    "restart:helper": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/dev-restart-helper.ps1",
+    "rebuild:restart": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/dev-rebuild-restart.ps1",
     "snapshot": "node helper/src/cli-snapshot.js",
     "test": "npm test --prefix helper",
     "test:watch": "npm run test:watch --prefix helper",
     "build": "npm run build --prefix web",
+    "dist": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/pack-desktop.ps1",
+    "dist:dir": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/pack-desktop.ps1 -DirOnly",
     "docs:html": "node scripts/md-to-html.mjs",
     "docs:view": "node scripts/md-to-html.mjs --open",
     "hooks": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/setup-git-hooks.ps1"

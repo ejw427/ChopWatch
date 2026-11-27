@@ -1,8 +1,9 @@
-const SIZE = 148;
-const CX = SIZE / 2;
-const CY = SIZE / 2 + 6;
-const R = 52;
-const STROKE = 12;
+import { useId } from "react";
+
+const DEFAULT_SIZE = 148;
+const STROKE_RATIO = 12 / 148;
+const R_RATIO = 52 / 148;
+const CY_OFFSET_RATIO = 6 / 148;
 const START = -210; // degrees
 const SWEEP = 240;
 
@@ -70,29 +71,50 @@ export default function GaugeDial({
   theme = "lime",
   max = 100,
   title,
+  size = DEFAULT_SIZE,
+  onOpen,
 }) {
+  const reactId = useId().replace(/:/g, "");
+  const sizeN = Number.isFinite(size) && size > 0 ? size : DEFAULT_SIZE;
+  const cx = sizeN / 2;
+  const cy = sizeN / 2 + sizeN * CY_OFFSET_RATIO;
+  const r = sizeN * R_RATIO;
+  const stroke = Math.max(8, sizeN * STROKE_RATIO);
+  const hub = Math.max(4.5, sizeN * (5.5 / 148));
+
   const pct = clampPct(value == null ? null : (value / max) * 100);
   const colors = THEMES[theme] || THEMES.lime;
   const endDeg = START + (SWEEP * (pct ?? 0)) / 100;
-  const tip = polar(CX, CY, R - 2, endDeg);
+  const tip = polar(cx, cy, r - 2, endDeg);
   const display =
     pct == null ? "—" : `${Math.round((pct / 100) * max * 10) / 10}${suffix}`;
-  const uid = `g-${label.replace(/\W+/g, "").toLowerCase()}`;
+  const uid = `g-${reactId}-${String(label).replace(/\W+/g, "").toLowerCase()}`;
+  const interactive = typeof onOpen === "function";
+  const Tag = interactive ? "button" : "div";
 
   return (
-    <div
-      className={`gauge gauge-${theme}`}
+    <Tag
+      type={interactive ? "button" : undefined}
+      className={`gauge gauge-${theme}${interactive ? " gauge-interactive" : ""}`}
       style={{ "--gauge-glow": colors.glow, "--gauge-ink": colors.ink }}
       title={title || hint || undefined}
+      onClick={interactive ? onOpen : undefined}
+      aria-label={interactive ? `${label}: ${display}. Open details.` : undefined}
     >
-      <svg className="gauge-svg" viewBox={`0 0 ${SIZE} ${SIZE}`} aria-hidden="true">
+      <svg
+        className="gauge-svg"
+        viewBox={`0 0 ${sizeN} ${sizeN}`}
+        width={sizeN}
+        height={sizeN}
+        aria-hidden="true"
+      >
         <defs>
           <linearGradient id={`${uid}-grad`} x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor={colors.from} />
             <stop offset="100%" stopColor={colors.to} />
           </linearGradient>
           <filter id={`${uid}-glow`} x="-40%" y="-40%" width="180%" height="180%">
-            <feGaussianBlur stdDeviation="3.5" result="blur" />
+            <feGaussianBlur stdDeviation={sizeN > 180 ? 5 : 3.5} result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
@@ -102,17 +124,17 @@ export default function GaugeDial({
 
         {/* track */}
         <path
-          d={arcPath(CX, CY, R, START, START + SWEEP)}
+          d={arcPath(cx, cy, r, START, START + SWEEP)}
           fill="none"
           stroke="rgba(255,255,255,0.06)"
-          strokeWidth={STROKE}
+          strokeWidth={stroke}
           strokeLinecap="round"
         />
         {/* ticks */}
         {Array.from({ length: 9 }, (_, i) => {
           const deg = START + (SWEEP * i) / 8;
-          const a = polar(CX, CY, R + 10, deg);
-          const b = polar(CX, CY, R + (i % 2 === 0 ? 16 : 13), deg);
+          const a = polar(cx, cy, r + sizeN * (10 / 148), deg);
+          const b = polar(cx, cy, r + sizeN * ((i % 2 === 0 ? 16 : 13) / 148), deg);
           return (
             <line
               key={i}
@@ -130,25 +152,32 @@ export default function GaugeDial({
         {pct != null && pct > 0.4 && (
           <path
             className="gauge-arc"
-            d={arcPath(CX, CY, R, START, endDeg)}
+            d={arcPath(cx, cy, r, START, endDeg)}
             fill="none"
             stroke={`url(#${uid}-grad)`}
-            strokeWidth={STROKE}
+            strokeWidth={stroke}
             strokeLinecap="round"
             filter={`url(#${uid}-glow)`}
           />
         )}
         {/* needle hub + tip */}
-        <circle cx={CX} cy={CY} r={5.5} fill="#0e130c" stroke={colors.to} strokeWidth="1.5" />
+        <circle
+          cx={cx}
+          cy={cy}
+          r={hub}
+          fill="#0e130c"
+          stroke={colors.to}
+          strokeWidth="1.5"
+        />
         {pct != null && (
           <line
             className="gauge-needle"
-            x1={CX}
-            y1={CY}
+            x1={cx}
+            y1={cy}
             x2={tip.x}
             y2={tip.y}
             stroke={colors.to}
-            strokeWidth="2.4"
+            strokeWidth={Math.max(2, sizeN * (2.4 / 148))}
             strokeLinecap="round"
             filter={`url(#${uid}-glow)`}
           />
@@ -159,6 +188,6 @@ export default function GaugeDial({
         <div className="gauge-label">{label}</div>
         {hint ? <div className="gauge-hint">{hint}</div> : null}
       </div>
-    </div>
+    </Tag>
   );
 }

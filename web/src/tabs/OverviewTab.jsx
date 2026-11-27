@@ -1,9 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import HoursChart from "../HoursChart.jsx";
 import GaugeDial from "../GaugeDial.jsx";
+import GaugeModal from "../GaugeModal.jsx";
 import Sparkline from "../Sparkline.jsx";
 import DetailModal from "../DetailModal.jsx";
 import InfoTip from "../InfoTip.jsx";
+import ChopCommandBar from "../ChopCommandBar.jsx";
 import {
   formatGiBFromMiB,
   formatMemPairFromMiB,
@@ -21,6 +23,24 @@ import {
 } from "../api.js";
 
 const LEVELS = ["Low", "Medium", "High", "Off"];
+
+const PROCESS_INFO = {
+  salad: {
+    image: "Salad.exe",
+    body:
+      "The main Salad desktop app — the window you sign into and use for balance, settings, and chopping controls. ChopWatch treats this as the front-end. If Salad is OFF while Bowl is ON, the workload engine may still be running in the background.",
+  },
+  bowl: {
+    image: "Salad.Bowl.Service.exe",
+    body:
+      "Bowl is Salad’s local workload engine. It talks to Salad’s cloud, pulls job images, starts and stops container workloads, and writes the logs ChopWatch reads for phase (Finding work, Downloading, Running, and so on). When Bowl is OFF, ChopWatch usually cannot see a live job.",
+  },
+  bootstrapper: {
+    image: "Salad.Bootstrapper.exe",
+    body:
+      "A short-lived helper Salad uses to install, update, or launch other Salad components. Seeing it ON briefly during startup or updates is normal — it does not run paid workloads itself.",
+  },
+};
 
 function formatAge(sec) {
   if (sec == null || !Number.isFinite(sec)) return "—";
@@ -95,6 +115,8 @@ function Fact({ label, value, tone, onOpen }) {
 
 export default function OverviewTab({ snap, setSnap }) {
   const [modalId, setModalId] = useState(null);
+  const [procKey, setProcKey] = useState(null);
+  const [gaugeId, setGaugeId] = useState(null);
   const work = snap?.work;
   const progress = pct(work?.progress);
   const downloading = work?.phase === "downloading" && progress != null;
@@ -136,7 +158,12 @@ export default function OverviewTab({ snap, setSnap }) {
             id: "resume",
             type: "button",
             primary: true,
-            label: "Resume chopping",
+            label: "Chop Now",
+            help: "Same as Salad’s Chop Now — clears indefinite pause so Salad can take work again.",
+            group: "chopping",
+            groupLabel: "Chopping",
+            groupHelp:
+              "Writes Salad’s indefinite-pause flag. Pause Until Idle / Set Time aren’t controllable from ChopWatch.",
             kind: "flag",
             key: "SALAD_CHOPPING_INDEFINITELY_PAUSED",
             value: false,
@@ -145,7 +172,12 @@ export default function OverviewTab({ snap, setSnap }) {
             id: "pause",
             type: "button",
             danger: true,
-            label: "Pause chopping",
+            label: "Pause Indefinitely",
+            help: "Same as Salad’s Pause Indefinitely — Salad won’t chop until you Chop Now.",
+            group: "chopping",
+            groupLabel: "Chopping",
+            groupHelp:
+              "Writes Salad’s indefinite-pause flag. Pause Until Idle / Set Time aren’t controllable from ChopWatch.",
             kind: "flag",
             key: "SALAD_CHOPPING_INDEFINITELY_PAUSED",
             value: true,
@@ -154,6 +186,9 @@ export default function OverviewTab({ snap, setSnap }) {
         id: "autoLaunch",
         type: "toggle",
         label: "Salad auto-launch",
+        help: "Open the Salad app when you sign into Windows.",
+        group: "chopping",
+        groupLabel: "Chopping",
         kind: "flag",
         key: "SALAD_AUTO_LAUNCH",
         value: flags.SALAD_AUTO_LAUNCH === true,
@@ -162,6 +197,9 @@ export default function OverviewTab({ snap, setSnap }) {
         id: "overlay",
         type: "toggle",
         label: "Salad overlay",
+        help: "Show Salad’s on-screen overlay while chopping.",
+        group: "chopping",
+        groupLabel: "Chopping",
         kind: "flag",
         key: "SALAD_OVERLAY_ENABLED",
         value: flags.SALAD_OVERLAY_ENABLED === true,
@@ -176,6 +214,12 @@ export default function OverviewTab({ snap, setSnap }) {
         id: "activeGpu",
         type: "select",
         label: "Active GPU",
+        help: "How hard Salad may use the GPU while you’re at the keyboard.",
+        tip: "Active = mouse/keyboard activity recently. Does not change download speed or VRAM display.",
+        group: "intensity",
+        groupLabel: "Resource limits",
+        groupHelp:
+          "Active = you’re using the PC. Idle = machine is away. Low → High = more aggressive. Off = don’t use that hardware in that state. These write Salad preferences.txt — not download speed.",
         kind: "pref",
         key: "active/gpu",
         value: prefs["active/gpu"] || "Low",
@@ -185,6 +229,10 @@ export default function OverviewTab({ snap, setSnap }) {
         id: "idleGpu",
         type: "select",
         label: "Idle GPU",
+        help: "How hard Salad may use the GPU when the PC is idle.",
+        tip: "Typical setup: Idle High, Active Low — push hard when away, stay light while you’re here.",
+        group: "intensity",
+        groupLabel: "Resource limits",
         kind: "pref",
         key: "idle/gpu",
         value: prefs["idle/gpu"] || "High",
@@ -194,6 +242,10 @@ export default function OverviewTab({ snap, setSnap }) {
         id: "activeCpu",
         type: "select",
         label: "Active CPU",
+        help: "How hard Salad may use the CPU while you’re using the PC.",
+        tip: "Off blocks CPU-only jobs while you’re active. Same Low → High scale as GPU.",
+        group: "intensity",
+        groupLabel: "Resource limits",
         kind: "pref",
         key: "active/cpu",
         value: prefs["active/cpu"] || "Low",
@@ -203,6 +255,10 @@ export default function OverviewTab({ snap, setSnap }) {
         id: "idleCpu",
         type: "select",
         label: "Idle CPU",
+        help: "How hard Salad may use the CPU when the PC is idle.",
+        tip: "Off disables CPU jobs while idle. Enable both GPU and CPU when idle for more job types.",
+        group: "intensity",
+        groupLabel: "Resource limits",
         kind: "pref",
         key: "idle/cpu",
         value: prefs["idle/cpu"] || "High",
@@ -212,6 +268,10 @@ export default function OverviewTab({ snap, setSnap }) {
         id: "miningGpu",
         type: "toggle",
         label: "Mining GPU workloads",
+        help: "Allow Salad crypto-mining jobs (usually a low-pay backup when no container job is available).",
+        group: "jobs",
+        groupLabel: "Job types",
+        groupHelp: "Opt in or out of Salad workload categories this machine will accept.",
         kind: "pref",
         key: "mining/gpu",
         value: String(prefs["mining/gpu"]).toLowerCase() === "true",
@@ -220,6 +280,9 @@ export default function OverviewTab({ snap, setSnap }) {
         id: "containers",
         type: "toggle",
         label: "Container workloads",
+        help: "Allow Salad container jobs — the main paid GPU/CPU workloads.",
+        group: "jobs",
+        groupLabel: "Job types",
         kind: "pref",
         key: "containers",
         value: String(prefs.containers).toLowerCase() === "true",
@@ -411,6 +474,9 @@ export default function OverviewTab({ snap, setSnap }) {
             id: "apiOn",
             type: "toggle",
             label: "Official Salad API",
+            help: "Pull balance from Salad’s official API (needs a connected account in Settings).",
+            group: "api",
+            groupLabel: "Salad API",
             kind: "setting",
             key: "saladApiEnabled",
             value: settings.saladApiEnabled === true,
@@ -420,6 +486,9 @@ export default function OverviewTab({ snap, setSnap }) {
             type: "button",
             primary: true,
             label: "Refresh API balance",
+            help: "Fetch the latest official balance now.",
+            group: "api",
+            groupLabel: "Salad API",
             kind: "refreshApi",
             disabled: settings.saladApiEnabled !== true || !settings.authCookieConfigured,
           },
@@ -440,6 +509,10 @@ export default function OverviewTab({ snap, setSnap }) {
             id: "alerts",
             type: "toggle",
             label: "Phase alerts enabled",
+            help: "Master switch for ChopWatch phase-change alerts.",
+            group: "alerts",
+            groupLabel: "Alerts",
+            groupHelp: "Local ChopWatch settings — not Salad preferences.",
             kind: "setting",
             key: "alertsEnabled",
             value: settings.alertsEnabled !== false,
@@ -448,6 +521,9 @@ export default function OverviewTab({ snap, setSnap }) {
             id: "toast",
             type: "toggle",
             label: "Windows toast alerts",
+            help: "Show Windows toast notifications on phase changes.",
+            group: "alerts",
+            groupLabel: "Alerts",
             kind: "setting",
             key: "windowsToastEnabled",
             value: settings.windowsToastEnabled !== false,
@@ -456,6 +532,9 @@ export default function OverviewTab({ snap, setSnap }) {
             id: "browserHint",
             type: "toggle",
             label: "Browser notification mirror",
+            help: "Also mirror alerts in the browser UI when the web app is open.",
+            group: "alerts",
+            groupLabel: "Alerts",
             kind: "setting",
             key: "browserAlertsHint",
             value: settings.browserAlertsHint !== false,
@@ -522,7 +601,238 @@ export default function OverviewTab({ snap, setSnap }) {
     settings.browserAlertsHint,
   ]);
 
-  const modal = facts.find((f) => f.id === modalId) || null;
+  const procModal = useMemo(() => {
+    if (!procKey) return null;
+    const p = (snap?.processes?.processes || []).find((x) => x.key === procKey);
+    const info = PROCESS_INFO[procKey];
+    if (!p && !info) return null;
+    const label = p?.label || info?.label || procKey;
+    const running = p?.running === true;
+    const pids = Array.isArray(p?.pids) ? p.pids.filter(Boolean) : [];
+    return {
+      label,
+      value: running ? "ON" : "OFF",
+      body:
+        info?.body ||
+        "Local Salad-related process watched by ChopWatch via Windows tasklist.",
+      rows: [
+        { label: "Status", value: running ? "Running" : "Not running" },
+        { label: "Image", value: info?.image || "—" },
+        {
+          label: "Instances",
+          value: p?.count != null ? String(p.count) : "—",
+        },
+        {
+          label: "Working set",
+          value: running ? formatProcMemory(p?.memoryMb) : "—",
+        },
+        {
+          label: "PIDs",
+          value: pids.length ? pids.join(", ") : "—",
+        },
+        {
+          label: "Role",
+          value:
+            procKey === "salad"
+              ? "Desktop UI / front-end"
+              : procKey === "bowl"
+                ? "Workload engine (logs ChopWatch reads)"
+                : procKey === "bootstrapper"
+                  ? "Install / update / launch helper"
+                  : "Watched Salad process",
+        },
+      ],
+      controls:
+        procKey === "salad" || procKey === "bowl" ? chopControls : undefined,
+    };
+  }, [procKey, snap?.processes?.processes, chopControls]);
+
+  const modal = procModal || facts.find((f) => f.id === modalId) || null;
+
+  const gauges = useMemo(() => {
+    const list = [];
+    if (downloading) {
+      list.push({
+        id: "download",
+        label: "Download",
+        value: progress,
+        theme: "violet",
+        hint: `pull ${progress}%`,
+        title: "Job image download progress from Bowl Pulling Progress(...) lines.",
+        body:
+          "How far Salad has pulled the current job image for this instance. Progress comes from Bowl Pulling Progress(...) log lines — not from GPU activity. When the pull finishes, ChopWatch moves on to initializing / running.",
+        rows: [
+          { label: "Progress", value: progress != null ? `${progress}%` : "—" },
+          { label: "Phase", value: work?.phase || "—" },
+          { label: "Instance", value: work?.shortId || "—" },
+          {
+            label: "Peak pull",
+            value:
+              session?.peakProgress != null
+                ? `${Math.round(session.peakProgress * 100)}%`
+                : progress != null
+                  ? `${progress}%`
+                  : "—",
+          },
+          { label: "Title", value: work?.title || "—" },
+        ],
+      });
+    }
+    list.push(
+      {
+        id: "gpuUtil",
+        label: "GPU util",
+        value: gpu0?.utilGpuPct,
+        theme: "lime",
+        hint: gpu0 ? formatTempC(gpu0.tempC) : "nvidia-smi n/a",
+        title: "GPU compute utilization from nvidia-smi.",
+        body:
+          "Percent of time the GPU was busy with compute work (nvidia-smi utilization.gpu). This is the best quick read of whether a chopping job is actively using the card. Temperature is shown as a hint because util and heat usually rise together.",
+        rows: [
+          { label: "GPU", value: gpu0?.name || "—" },
+          {
+            label: "Util",
+            value: gpu0?.utilGpuPct != null ? `${gpu0.utilGpuPct}%` : "—",
+          },
+          { label: "Temperature", value: formatTempC(gpu0?.tempC) },
+          {
+            label: "Source",
+            value: snap?.gpu?.available ? "nvidia-smi" : "nvidia-smi n/a",
+          },
+        ],
+      },
+      {
+        id: "vram",
+        label: "VRAM fill",
+        value: gpu0?.utilMemPct,
+        theme: "cyan",
+        hint: [gpuMemHint, memBusy].filter(Boolean).join(" · ") || null,
+        title: "VRAM fill = memory used ÷ total. Not memory-bus busy time.",
+        body:
+          "How full video memory is right now: used ÷ total VRAM. This is not the same as memory-controller busy time (bus activity). A loaded model can keep VRAM high even when compute util dips between steps.",
+        rows: [
+          { label: "Used", value: formatGiBFromMiB(memUsed) },
+          { label: "Total", value: formatGiBFromMiB(memTotal) },
+          {
+            label: "Fill",
+            value: gpu0?.utilMemPct != null ? `${gpu0.utilMemPct}%` : "—",
+          },
+          {
+            label: "Controller busy",
+            value:
+              gpu0?.memControllerBusyPct != null
+                ? `${Math.round(gpu0.memControllerBusyPct)}%`
+                : "—",
+          },
+          {
+            label: "Pair",
+            value: gpuMemHint || "—",
+          },
+        ],
+      },
+      {
+        id: "gpuPower",
+        label: "GPU power",
+        value: gpu0?.powerPct,
+        theme: "coral",
+        hint:
+          gpu0?.powerW != null
+            ? `${formatWatts(gpu0.powerW)} / ${formatWatts(gpu0.powerLimitW)}`
+            : null,
+        title: "GPU power draw as a percent of the card’s power limit.",
+        body:
+          "Instantaneous power draw divided by the card’s reported power limit. Useful as a “how hard is it working” signal alongside util — sustained high power usually means sustained load and heat.",
+        rows: [
+          { label: "Draw", value: formatWatts(gpu0?.powerW) },
+          { label: "Limit", value: formatWatts(gpu0?.powerLimitW) },
+          {
+            label: "Power %",
+            value: gpu0?.powerPct != null ? `${gpu0.powerPct}%` : "—",
+          },
+          { label: "Temperature", value: formatTempC(gpu0?.tempC) },
+          { label: "GPU", value: gpu0?.name || "—" },
+        ],
+      },
+      {
+        id: "cpuLoad",
+        label: "CPU load",
+        value: snap?.host?.cpuLoadPct,
+        theme: "amber",
+        hint: snap?.host?.cpuName?.trim() || "host CPU",
+        title: "Host CPU load as reported by the local helper.",
+        body:
+          "Host CPU load percentage from the local helper (Windows LoadPercentage). This is whole-machine CPU, not Salad-only — Bowl, the OS, browsers, and other apps all share it.",
+        rows: [
+          {
+            label: "Load",
+            value:
+              snap?.host?.cpuLoadPct != null ? `${snap.host.cpuLoadPct}%` : "—",
+          },
+          { label: "CPU", value: snap?.host?.cpuName?.trim() || "—" },
+          {
+            label: "RAM used",
+            value:
+              snap?.host?.memUsedMb != null
+                ? formatMemPairFromMb(snap.host.memUsedMb, snap.host.memTotalMb)
+                : "—",
+          },
+        ],
+      },
+      {
+        id: "sysRam",
+        label: "System RAM",
+        value: snap?.host?.memUsedPct,
+        theme: "mint",
+        hint:
+          snap?.host?.memUsedMb != null
+            ? formatMemPairFromMb(snap.host.memUsedMb, snap.host.memTotalMb)
+            : null,
+        title: "System RAM in use vs installed capacity (shown in GB).",
+        body:
+          "System memory in use versus installed capacity. Separate from GPU VRAM. If this climbs while chopping, host processes (Bowl, Docker/containers, OS cache) may be competing with everything else on the machine.",
+        rows: [
+          {
+            label: "Used %",
+            value:
+              snap?.host?.memUsedPct != null ? `${snap.host.memUsedPct}%` : "—",
+          },
+          {
+            label: "Used / total",
+            value:
+              snap?.host?.memUsedMb != null
+                ? formatMemPairFromMb(snap.host.memUsedMb, snap.host.memTotalMb)
+                : "—",
+          },
+          {
+            label: "CPU load",
+            value:
+              snap?.host?.cpuLoadPct != null ? `${snap.host.cpuLoadPct}%` : "—",
+          },
+        ],
+      },
+    );
+    return list;
+  }, [
+    downloading,
+    progress,
+    work,
+    session,
+    gpu0,
+    gpuMemHint,
+    memBusy,
+    memUsed,
+    memTotal,
+    snap?.gpu?.available,
+    snap?.host,
+  ]);
+
+  const gaugeModal = gauges.find((g) => g.id === gaugeId) || null;
+
+  useEffect(() => {
+    if (gaugeId && !gauges.some((g) => g.id === gaugeId)) {
+      setGaugeId(null);
+    }
+  }, [gaugeId, gauges]);
 
   async function refreshSnap() {
     const next = await fetchSnapshot();
@@ -564,6 +874,13 @@ export default function OverviewTab({ snap, setSnap }) {
   return (
     <>
       <section className="hero">
+        <ChopCommandBar
+          paused={paused}
+          phase={work?.phase}
+          saladUp={saladUp}
+          onUpdated={refreshSnap}
+        />
+
         <div className="hero-main">
           <p className="phase-kicker">Current work</p>
           <h2 className="phase-title">
@@ -586,7 +903,10 @@ export default function OverviewTab({ snap, setSnap }) {
               label={f.label}
               value={f.value}
               tone={f.tone}
-              onOpen={() => setModalId(f.id)}
+              onOpen={() => {
+                setProcKey(null);
+                setModalId(f.id);
+              }}
             />
           ))}
         </div>
@@ -596,58 +916,17 @@ export default function OverviewTab({ snap, setSnap }) {
         className={`gauge-row${downloading ? " with-download" : " five"}`}
         aria-label="Hardware gauges"
       >
-        {downloading && (
+        {gauges.map((g) => (
           <GaugeDial
-            label="Download"
-            value={progress}
-            theme="violet"
-            hint={`pull ${progress}%`}
-            title="Job image download progress from Bowl Pulling Progress(...) lines."
+            key={g.id}
+            label={g.label}
+            value={g.value}
+            theme={g.theme}
+            hint={g.hint}
+            title={g.title}
+            onOpen={() => setGaugeId(g.id)}
           />
-        )}
-        <GaugeDial
-          label="GPU util"
-          value={gpu0?.utilGpuPct}
-          theme="lime"
-          hint={gpu0 ? formatTempC(gpu0.tempC) : "nvidia-smi n/a"}
-          title="GPU compute utilization from nvidia-smi."
-        />
-        <GaugeDial
-          label="VRAM fill"
-          value={gpu0?.utilMemPct}
-          theme="cyan"
-          hint={[gpuMemHint, memBusy].filter(Boolean).join(" · ") || null}
-          title="VRAM fill = memory used ÷ total. Not memory-bus busy time."
-        />
-        <GaugeDial
-          label="GPU power"
-          value={gpu0?.powerPct}
-          theme="coral"
-          hint={
-            gpu0?.powerW != null
-              ? `${formatWatts(gpu0.powerW)} / ${formatWatts(gpu0.powerLimitW)}`
-              : null
-          }
-          title="GPU power draw as a percent of the card’s power limit."
-        />
-        <GaugeDial
-          label="CPU load"
-          value={snap?.host?.cpuLoadPct}
-          theme="amber"
-          hint={snap?.host?.cpuName?.trim() || "host CPU"}
-          title="Host CPU load as reported by the local helper."
-        />
-        <GaugeDial
-          label="System RAM"
-          value={snap?.host?.memUsedPct}
-          theme="mint"
-          hint={
-            snap?.host?.memUsedMb != null
-              ? formatMemPairFromMb(snap.host.memUsedMb, snap.host.memTotalMb)
-              : null
-          }
-          title="System RAM in use vs installed capacity (shown in GB)."
-        />
+        ))}
       </section>
 
       <div className="stat-row">
@@ -757,18 +1036,28 @@ export default function OverviewTab({ snap, setSnap }) {
 
         <section className="panel">
           <h2>Processes</h2>
+          <p className="hint">Click a process for what it does and live details.</p>
           <ul className="proc-list">
             {(snap?.processes?.processes || []).map((p) => (
-              <li key={p.key} className={p.running ? "on" : ""}>
-                <span>
-                  {p.label}
-                  <div className="mono">
-                    {p.running
-                      ? `${p.count} proc · ${formatProcMemory(p.memoryMb)}`
-                      : "not running"}
-                  </div>
-                </span>
-                <span className="mono">{p.running ? "ON" : "OFF"}</span>
+              <li key={p.key}>
+                <button
+                  type="button"
+                  className={`proc-item${p.running ? " on" : ""}`}
+                  onClick={() => {
+                    setModalId(null);
+                    setProcKey(p.key);
+                  }}
+                >
+                  <span>
+                    {p.label}
+                    <div className="mono">
+                      {p.running
+                        ? `${p.count} proc · ${formatProcMemory(p.memoryMb)}`
+                        : "not running"}
+                    </div>
+                  </span>
+                  <span className="mono">{p.running ? "ON" : "OFF"}</span>
+                </button>
               </li>
             ))}
           </ul>
@@ -782,8 +1071,22 @@ export default function OverviewTab({ snap, setSnap }) {
         body={modal?.body}
         rows={modal?.rows}
         controls={modal?.controls}
-        onClose={() => setModalId(null)}
+        onClose={() => {
+          setModalId(null);
+          setProcKey(null);
+        }}
         onAction={onModalAction}
+      />
+
+      <GaugeModal
+        open={Boolean(gaugeModal)}
+        title={gaugeModal?.label}
+        body={gaugeModal?.body}
+        rows={gaugeModal?.rows}
+        value={gaugeModal?.value}
+        hint={gaugeModal?.hint}
+        theme={gaugeModal?.theme}
+        onClose={() => setGaugeId(null)}
       />
     </>
   );

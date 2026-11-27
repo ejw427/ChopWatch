@@ -31,6 +31,7 @@
       margin: 0 auto;
       padding: 2.5rem 1.25rem 4rem;
     }
+    
     .meta {
       font-size: 0.8rem;
       color: #8aa090;
@@ -131,20 +132,34 @@
   <main>
     <p class="meta">Generated from <code>README.md</code> · do not edit by hand</p>
     <h1>ChopWatch</h1>
-<p>Local, <strong>read-only</strong> dashboard for Salad chopping on this PC.</p>
-<p>Shows what Salad is <em>doing</em> (lifecycle), GPU/host load, Bowl wallet lines, chopping-hour estimates, phase alerts, and — if you opt in — official Salad API balance/history. <strong>Not</strong> customer workload identity or container contents.</p>
+<p>Local dashboard for Salad chopping on this PC.</p>
+<p>Shows what Salad is <em>doing</em> (lifecycle), GPU/host load, Bowl wallet lines, chopping-hour estimates, phase alerts, and — if you opt in — official Salad API balance/history. Overview popups can pause/resume chopping and edit allowlisted Salad preferences. <strong>Not</strong> customer workload identity or container contents.</p>
 <p><strong>Repo:</strong> https://github.com/ejw427/ChopWatch Day-to-day branch: <code>dev</code> · stable line: <code>main</code></p>
+<h2>Download (Windows)</h2>
+<p>Installers ship on <a href="https://github.com/ejw427/ChopWatch/releases">GitHub Releases</a>:</p>
+<ul>
+<li><strong>Setup <code>.exe</code></strong> — NSIS installer (Start Menu + desktop shortcut)</li>
+<li><strong>Portable <code>.exe</code></strong> — no install; run from a folder</li>
+</ul>
+<p>Windows SmartScreen may warn on unsigned builds — choose <em>More info</em> → <em>Run anyway</em> if you trust the release. Settings/secrets stay under your user profile (<code>%APPDATA%\ChopWatch</code>).</p>
 <h2>Safety</h2>
 <p>ChopWatch never:</p>
 <ul>
 <li>Reads <code>token.txt</code> or other Salad ProgramData credentials by default</li>
 <li>Opens WSL shells or customer container filesystems</li>
 <li>Inspects encrypted workload images or job payloads</li>
+<li>Fakes Bowl job phases (Running/Pulling still come from Salad logs)</li>
 </ul>
+<p>Allowlisted writes (from Overview popups): Salad <code>SALAD_CHOPPING_INDEFINITELY_PAUSED</code> / related app flags, and workload preference levels in <code>preferences.txt</code>.</p>
 <p>Your optional Salad <code>auth</code> cookie is stored only in <code>helper/data/secrets.json</code> (gitignored). Treat it like a password.</p>
 <h2>Run</h2>
-<pre><code class="language-bash">npm install
-npm start</code></pre>
+<pre><code class="language-bash">npm install</code></pre>
+<p><strong>Desktop app</strong> (window + system tray; helper runs in the background):</p>
+<pre><code class="language-bash">npm run app</code></pre>
+<p>Close the window to hide to the tray. Quit from the tray menu.</p>
+<p><strong>Cursor / VS Code:</strong> use the status-bar task buttons (Stop, Rebuild + restart, …) or <strong>Terminal → Run Task…</strong>. See <code>.vscode/tasks.json</code>.</p>
+<p><strong>Browser dashboard</strong> (unchanged):</p>
+<pre><code class="language-bash">npm start</code></pre>
 <ul>
 <li>UI: http://127.0.0.1:5177</li>
 <li>Helper API: http://127.0.0.1:3781</li>
@@ -200,6 +215,13 @@ npm start</code></pre>
 <p>Regenerate HTML sisters: <code>npm run docs:html</code> · open them: <code>npm run docs:view</code></p>
 <h2>Tests</h2>
 <pre><code class="language-bash">npm test</code></pre>
+<h2>Package a Windows release</h2>
+<pre><code class="language-powershell">npm run dist</code></pre>
+<p>Artifacts land in <code>release/</code> (installer + portable). Faster unpacked smoke test:</p>
+<pre><code class="language-powershell">npm run dist:dir</code></pre>
+<p>Tag and push to publish via GitHub Actions (<code>Release</code> workflow):</p>
+<pre><code class="language-powershell">git tag v0.5.1
+git push origin v0.5.1</code></pre>
 <h2>Data sources</h2>
 <div class="table-wrap"><table>
 <thead><tr>
@@ -237,5 +259,6 @@ npm start</code></pre>
 <h2>Name</h2>
 <p><strong>ChopWatch</strong> — watch Chopping without pretending to see inside the job.</p>
   </main>
+  
 </body>
 </html>

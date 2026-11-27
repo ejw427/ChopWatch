@@ -1,5 +1,7 @@
 import express from "express";
 import cors from "cors";
+import fs from "node:fs";
+import path from "node:path";
 import { buildSnapshot } from "./snapshot.js";
 import { readChopHours } from "./chopHours.js";
 import { fetchSaladAccount, invalidateSaladApiCache } from "./saladApi.js";
@@ -28,12 +30,24 @@ import { getProductVersion } from "./version.js";
 
 const PORT = Number(process.env.CHOPWATCH_PORT || 3781);
 const HOST = process.env.CHOPWATCH_HOST || "127.0.0.1";
+const uiDir = (() => {
+  const raw = String(process.env.CHOPWATCH_UI_DIR || "").trim();
+  if (!raw) return null;
+  const resolved = path.resolve(raw);
+  return fs.existsSync(resolved) ? resolved : null;
+})();
 
 const app = express();
 app.use(express.json({ limit: "32kb" }));
 app.use(
   cors({
-    origin: ["http://127.0.0.1:5177", "http://localhost:5177"],
+    origin: [
+      "http://127.0.0.1:5177",
+      "http://localhost:5177",
+      `http://${HOST}:${PORT}`,
+      `http://127.0.0.1:${PORT}`,
+      `http://localhost:${PORT}`,
+    ],
   }),
 );
 
@@ -205,8 +219,22 @@ app.get("/", (_req, res) => {
   });
 });
 
+if (uiDir) {
+  app.use(express.static(uiDir, { index: "index.html" }));
+  app.use((req, res, next) => {
+    if (req.method !== "GET" && req.method !== "HEAD") return next();
+    if (req.path === "/health" || req.path.startsWith("/api")) return next();
+    res.sendFile(path.join(uiDir, "index.html"), (err) => {
+      if (err) next(err);
+    });
+  });
+}
+
 app.listen(PORT, HOST, async () => {
   console.log(`ChopWatch helper listening on http://${HOST}:${PORT}`);
+  if (uiDir) {
+    console.log(`Serving packaged UI from ${uiDir}`);
+  }
   // Optional legacy scrape of system browser cookies (usually locked while Chrome/Salad run).
   // Preferred path is Connect Salad account (ChopWatch-owned browser profile).
   const settings = readSettings();

@@ -7,6 +7,15 @@ Shows what Salad is *doing* (lifecycle), GPU/host load, Bowl wallet lines, chopp
 **Repo:** https://github.com/ejw427/ChopWatch  
 Day-to-day branch: `dev` · stable line: `main`
 
+## Download (Windows)
+
+Installers ship on [GitHub Releases](https://github.com/ejw427/ChopWatch/releases):
+
+- **Setup `.exe`** — NSIS installer (Start Menu + desktop shortcut)
+- **Portable `.exe`** — no install; run from a folder
+
+Windows SmartScreen may warn on unsigned builds — choose *More info* → *Run anyway* if you trust the release. Settings/secrets stay under your user profile (`%APPDATA%\ChopWatch`).
+
 ## Safety
 
 ChopWatch never:
@@ -33,6 +42,8 @@ npm run app
 ```
 
 Close the window to hide to the tray. Quit from the tray menu.
+
+**Cursor / VS Code:** use the status-bar task buttons (Stop, Rebuild + restart, …) or **Terminal → Run Task…**. See `.vscode/tasks.json`.
 
 **Browser dashboard** (unchanged):
 
@@ -67,12 +78,32 @@ npm run hooks
 | [Testing / versions](docs/TESTING.md) | [TESTING.html](docs/TESTING.html) |
 | [Project plan](docs/PROJECT_PLAN.md) | [PROJECT_PLAN.html](docs/PROJECT_PLAN.html) |
 
-Regenerate HTML sisters: `npm run docs:html` · open them: `npm run docs:view`
+Regenerate HTML sisters: `npm run docs:html` · open them: `npm run docs:view`  
+Public: [welchsoftware.net/projects/chopwatch](https://www.welchsoftware.net/projects/chopwatch) · [docs hub](https://www.welchsoftware.net/chopwatch/)
 
 ## Tests
 
 ```bash
 npm test
+```
+
+## Package a Windows release
+
+```powershell
+npm run dist
+```
+
+Artifacts land in `release/` (installer + portable). Faster unpacked smoke test:
+
+```powershell
+npm run dist:dir
+```
+
+Tag and push to publish via GitHub Actions (`Release` workflow):
+
+```powershell
+git tag v0.5.1
+git push origin v0.5.1
 ```
 
 ## Data sources

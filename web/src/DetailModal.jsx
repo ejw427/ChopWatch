@@ -1,4 +1,46 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import InfoTip from "./InfoTip.jsx";
+
+function groupControls(controls) {
+  const groups = [];
+  for (const c of controls || []) {
+    const key = c.group || c.id;
+    const last = groups[groups.length - 1];
+    if (last && last.key === key) {
+      last.items.push(c);
+      continue;
+    }
+    groups.push({
+      key,
+      label: c.groupLabel || null,
+      help: c.groupHelp || null,
+      items: [c],
+    });
+  }
+  return groups;
+}
+
+function ControlCopy({ label, help, tip }) {
+  const title = tip ? (
+    <InfoTip text={tip} wide>
+      <span className="modal-control-label has-tip">
+        {label}
+        <span className="modal-control-tip-mark" aria-hidden="true">
+          ?
+        </span>
+      </span>
+    </InfoTip>
+  ) : (
+    <span className="modal-control-label">{label}</span>
+  );
+
+  return (
+    <div className="modal-control-copy">
+      {title}
+      {help ? <span className="modal-control-help">{help}</span> : null}
+    </div>
+  );
+}
 
 export default function DetailModal({
   open,
@@ -12,6 +54,7 @@ export default function DetailModal({
 }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const groups = useMemo(() => groupControls(controls), [controls]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -38,6 +81,56 @@ export default function DetailModal({
     } finally {
       setBusy(false);
     }
+  }
+
+  function renderControl(c) {
+    if (c.type === "select") {
+      return (
+        <label key={c.id} className="modal-control select">
+          <ControlCopy label={c.label} help={c.help} tip={c.tip} />
+          <select
+            disabled={busy || c.disabled}
+            value={c.value ?? ""}
+            aria-label={c.label}
+            onChange={(e) => run({ ...c, value: e.target.value })}
+          >
+            {(c.options || []).map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
+        </label>
+      );
+    }
+    if (c.type === "toggle") {
+      return (
+        <label key={c.id} className="modal-control toggle">
+          <input
+            type="checkbox"
+            checked={Boolean(c.value)}
+            disabled={busy || c.disabled}
+            aria-label={c.label}
+            onChange={(e) => run({ ...c, value: e.target.checked })}
+          />
+          <ControlCopy label={c.label} help={c.help} tip={c.tip} />
+        </label>
+      );
+    }
+    return (
+      <div key={c.id} className="modal-control action">
+        <button
+          type="button"
+          className={`modal-action${c.danger ? " danger" : ""}${c.primary ? " primary" : ""}`}
+          disabled={busy || c.disabled}
+          title={c.tip || undefined}
+          onClick={() => run(c)}
+        >
+          {c.label}
+        </button>
+        {c.help ? <span className="modal-control-help">{c.help}</span> : null}
+      </div>
+    );
   }
 
   return (
@@ -73,58 +166,25 @@ export default function DetailModal({
           </dl>
         )}
 
-        {controls?.length > 0 && (
+        {groups.length > 0 && (
           <div className="modal-controls">
             <p className="modal-controls-label">Controls</p>
-            <div className="modal-control-list">
-              {controls.map((c) => {
-                if (c.type === "select") {
-                  return (
-                    <label key={c.id} className="modal-control select">
-                      <span>{c.label}</span>
-                      <select
-                        disabled={busy || c.disabled}
-                        value={c.value ?? ""}
-                        onChange={(e) =>
-                          run({ ...c, value: e.target.value })
-                        }
-                      >
-                        {(c.options || []).map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  );
-                }
-                if (c.type === "toggle") {
-                  return (
-                    <label key={c.id} className="modal-control toggle">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(c.value)}
-                        disabled={busy || c.disabled}
-                        onChange={(e) =>
-                          run({ ...c, value: e.target.checked })
-                        }
-                      />
-                      <span>{c.label}</span>
-                    </label>
-                  );
-                }
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    className={`modal-action${c.danger ? " danger" : ""}${c.primary ? " primary" : ""}`}
-                    disabled={busy || c.disabled}
-                    onClick={() => run(c)}
-                  >
-                    {c.label}
-                  </button>
-                );
-              })}
+            <div className="modal-control-groups">
+              {groups.map((g) => (
+                <section key={g.key} className="modal-control-group">
+                  {g.label ? (
+                    <header className="modal-control-group-head">
+                      <p className="modal-control-group-label">{g.label}</p>
+                      {g.help ? (
+                        <p className="modal-control-group-help">{g.help}</p>
+                      ) : null}
+                    </header>
+                  ) : null}
+                  <div className="modal-control-list">
+                    {g.items.map((c) => renderControl(c))}
+                  </div>
+                </section>
+              ))}
             </div>
             {msg ? <p className="modal-msg">{msg}</p> : null}
             <p className="modal-note">

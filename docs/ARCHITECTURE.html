@@ -31,6 +31,19 @@
       margin: 0 auto;
       padding: 2.5rem 1.25rem 4rem;
     }
+    
+    main { max-width: 58rem; }
+    pre.mermaid {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem 1rem;
+      overflow-x: auto;
+      text-align: center;
+      color: var(--text);
+    }
+    pre.mermaid svg { max-width: 100%; height: auto; }
+
     .meta {
       font-size: 0.8rem;
       color: #8aa090;
@@ -131,11 +144,31 @@
   <main>
     <p class="meta">Generated from <code>ARCHITECTURE.md</code> · do not edit by hand</p>
     <h1>Architecture</h1>
-<p>ChopWatch is a local <strong>read-only</strong> Salad Chopping dashboard: a small Express helper plus a Vite/React UI.</p>
-<h2>Processes</h2>
-<pre><code class="language-text">[Browser UI :5177]  --poll--&gt;  [Helper API :3781]  --read--&gt;  Bowl logs / nvidia-smi / OS
-                                      |
-                                      +--opt-in--&gt;  Salad app-api (auth cookie)</code></pre>
+<p>ChopWatch is a local, mostly <strong>read-only</strong> Salad Chopping dashboard: an Express helper, a Vite/React UI, and an optional Electron tray shell. It watches what Salad is <em>doing</em> on this PC — lifecycle, GPU/host load, Bowl wallet lines, chopping hours, phase alerts — without opening customer workloads or container filesystems.</p>
+<p><strong>Version:</strong> product version lives in root <code>package.json</code> (currently 0.5.x). <strong>Repo:</strong> https://github.com/ejw427/ChopWatch · day-to-day <code>dev</code> · stable <code>main</code></p>
+<p>---</p>
+<h2>System overview</h2>
+<pre class="mermaid">flowchart LR
+  subgraph ui [UI layer]
+    Vite[&quot;Vite React UI&lt;br/&gt;127.0.0.1:5177&lt;br/&gt;dev&quot;]
+    Electron[&quot;Electron shell&lt;br/&gt;window + tray&quot;]
+  end
+
+  Helper[&quot;Helper Express API&lt;br/&gt;127.0.0.1:3781&quot;]
+
+  subgraph local [Local machine]
+    SaladFiles[&quot;Salad ProgramData / AppData&lt;br/&gt;Bowl logs · prefs · config&quot;]
+    Nvidia[&quot;nvidia-smi + OS&lt;br/&gt;GPU · CPU · RAM · disk&quot;]
+  end
+
+  SaladAPI[&quot;app-api.salad.com&lt;br/&gt;opt-in balance / history&quot;]
+
+  Vite --&gt;|&quot;GET /api/snapshot every 3s&quot;| Helper
+  Electron --&gt;|&quot;dev → :5177&lt;br/&gt;packaged → :3781/&quot;| Helper
+  Electron --&gt;|&quot;spawn helper process&quot;| Helper
+  Helper --&gt; SaladFiles
+  Helper --&gt; Nvidia
+  Helper -.-&gt;|&quot;auth cookie when enabled&quot;| SaladAPI</pre>
 <div class="table-wrap"><table>
 <thead><tr>
 <th>Piece</th>
@@ -147,64 +180,272 @@
 </tr>
 <tr>
 <td><code>web/</code></td>
-<td>Vite + React on <code>127.0.0.1:5177</code>. Tabs: Overview, Details, Settings, About.</td>
+<td>Vite + React on <code>127.0.0.1:5177</code> in dev. Tabs: Overview, Details, Settings, About.</td>
+</tr>
+<tr>
+<td><code>desktop/</code></td>
+<td>Electron shell + tray. Dev loads Vite; packaged builds spawn the helper with <code>ELECTRON_RUN_AS_NODE</code> and load the UI from the helper (<code>CHOPWATCH_UI_DIR</code>).</td>
 </tr>
 <tr>
 <td>Root</td>
-<td><code>concurrently</code> runs helper + web; product version lives in root <code>package.json</code>.</td>
+<td><code>concurrently</code> runs helper + web; product version in root <code>package.json</code>. <code>npm run dist</code> builds Windows installers into <code>release/</code>.</td>
 </tr>
 </tbody></table></div>
+<p>---</p>
+<h2>Dev vs packaged topology</h2>
+<pre class="mermaid">flowchart TB
+  subgraph devBrowser [&quot;npm start — browser&quot;]
+    B1[Vite :5177] --&gt;|poll 3s| H1[Helper :3781]
+  end
+
+  subgraph devApp [&quot;npm run app — desktop&quot;]
+    E1[Electron] --&gt;|spawn| H2[Helper :3781]
+    E1 --&gt;|load| B2[Vite :5177]
+    B2 --&gt;|poll 3s| H2
+  end
+
+  subgraph pack [&quot;Packaged ChopWatch.exe&quot;]
+    E2[Electron + tray] --&gt;|ELECTRON_RUN_AS_NODE| H3[Helper in resources/helper]
+    H3 --&gt;|serves static| UI[resources/ui]
+    E2 --&gt;|load http://127.0.0.1:3781/| H3
+    Data[&quot;%APPDATA%\\ChopWatch\\data&lt;br/&gt;settings · secrets · state&quot;]
+    H3 --&gt; Data
+  end</pre>
+<h3>Packaged layout</h3>
+<pre><code class="language-text">ChopWatch.exe
+resources/
+  app.asar          (desktop main + preload)
+  helper/           (Express API + production node_modules)
+  ui/               (vite build output)
+  package.json      (product version)</code></pre>
+<p>User data (settings, secrets, Connect browser profile) lives under Electron <code>userData</code> via <code>CHOPWATCH_DATA_DIR</code>, not next to the install.</p>
+<h3>Ports &amp; polling</h3>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Loop</th>
+<th>Interval</th>
+<th>Where</th>
+</tr></thead><tbody>
+<tr>
+<td>UI snapshot poll</td>
+<td><strong>3s</strong></td>
+<td><code>web/src/App.jsx</code> → <code>GET /api/snapshot</code></td>
+</tr>
+<tr>
+<td>Helper phase watcher (toasts with tray-hidden UI)</td>
+<td><strong>5s</strong></td>
+<td><code>helper/src/index.js</code></td>
+</tr>
+<tr>
+<td>Connect Salad status poll</td>
+<td><strong>1.5–2s</strong> while waiting</td>
+<td>Settings tab</td>
+</tr>
+<tr>
+<td>Connect cookie sweep</td>
+<td><strong>1.5s</strong>, timeout <strong>5 min</strong></td>
+<td><code>saladConnect.js</code></td>
+</tr>
+<tr>
+<td>Salad API cache</td>
+<td><strong>60s</strong></td>
+<td><code>saladApi.js</code></td>
+</tr>
+</tbody></table></div>
+<p>---</p>
 <h2>Snapshot pipeline</h2>
-<p><code>helper/src/snapshot.js</code> → <code>buildSnapshot()</code> aggregates:</p>
-<ol>
-<li>Salad process list (<code>processes.js</code>)</li>
-<li>Chopping prefs / pause flags (<code>preferences.js</code>)</li>
-<li>Workload phase from Bowl logs (<code>bowlLog.js</code>)</li>
-<li>Wallet + heartbeat lines (<code>wallet.js</code>)</li>
-<li>GPU (<code>nvidia-smi</code>), host CPU/RAM, disk</li>
-<li>Chopping hours from state samples (<code>chopHours.js</code>, 15m gap cap)</li>
-<li>Phase-change alerts (<code>alerts.js</code>)</li>
-<li>Optional official Salad balance/history (<code>saladApi.js</code>)</li>
-</ol>
+<p><code>helper/src/snapshot.js</code> → <code>buildSnapshot()</code> aggregates machine state into one JSON payload for the UI.</p>
+<pre class="mermaid">flowchart TD
+  A[buildSnapshot] --&gt; B[processes.js&lt;br/&gt;Salad / Bowl / Bootstrapper]
+  A --&gt; C[preferences.js&lt;br/&gt;pause flags + prefs]
+  A --&gt; D[bowlLog.js&lt;br/&gt;WLInstanceState* lifecycle]
+  A --&gt; E[wallet.js&lt;br/&gt;Current / Predicted + heartbeat]
+  A --&gt; F[gpu.js · host.js · disk.js]
+  A --&gt; G[chopHours.js&lt;br/&gt;active time · 15m gap cap]
+  A --&gt; H[alerts.js&lt;br/&gt;phase change · 20s debounce]
+  A --&gt; I[saladApi.js&lt;br/&gt;opt-in account]
+  A --&gt; J[JSON → UI /api/snapshot]</pre>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Order</th>
+<th>Module</th>
+<th>Reads / does</th>
+</tr></thead><tbody>
+<tr>
+<td>1</td>
+<td><code>processes.js</code></td>
+<td><code>tasklist</code> for <code>Salad*</code>: Salad, Bowl.Service, Bootstrapper</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>preferences.js</code></td>
+<td><code>%APPDATA%\Salad\config.json</code> flags + ProgramData prefs (allowlisted)</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>bowlLog.js</code></td>
+<td><code>%PROGRAMDATA%\Salad\logs</code> → <code>WLInstanceState*</code>, sessions, finding-job inference</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>wallet.js</code></td>
+<td>Bowl <code>Wallet: Current(...), Predicted(...)</code> + heartbeat age</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>gpu.js</code> / <code>host.js</code> / <code>disk.js</code></td>
+<td>nvidia-smi, CPU/RAM, disk (skips <code>blockedFiles</code>)</td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>chopHours.js</code></td>
+<td>Integrate active samples; <strong>gaps capped 15m</strong></td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>alerts.js</code></td>
+<td>Phase-change debounce <strong>20s</strong>; toast + UI event</td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>saladApi.js</code></td>
+<td>Opt-in balance / machines / 30-day history</td>
+</tr>
+</tbody></table></div>
+<h3>Key Salad paths</h3>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Path</th>
+<th>Use</th>
+</tr></thead><tbody>
+<tr>
+<td><code>C:\ProgramData\Salad\logs</code></td>
+<td>Bowl lifecycle + wallet lines</td>
+</tr>
+<tr>
+<td><code>C:\ProgramData\Salad\…\preferences.txt</code></td>
+<td>Workload preference levels (allowlisted writes)</td>
+</tr>
+<tr>
+<td><code>%APPDATA%\Salad\config.json</code></td>
+<td>Pause / auto-launch / overlay flags (allowlisted writes)</td>
+</tr>
+<tr>
+<td><code>C:\Program Files\Salad</code></td>
+<td>Install presence only</td>
+</tr>
+</tbody></table></div>
+<p>---</p>
+<h2>Core workflows</h2>
+<h3>Start (packaged)</h3>
+<pre class="mermaid">sequenceDiagram
+  participant User
+  participant Electron
+  participant Helper
+  participant UI
+  User-&gt;&gt;Electron: launch ChopWatch.exe
+  Electron-&gt;&gt;Helper: spawn via ELECTRON_RUN_AS_NODE
+  Electron-&gt;&gt;Helper: poll GET /health
+  Electron-&gt;&gt;UI: load http://127.0.0.1:3781/
+  loop every 3s
+    UI-&gt;&gt;Helper: GET /api/snapshot
+  end
+  Note over Electron: Close window → hide to tray&lt;br/&gt;Quit → stop helper</pre>
+<h3>Connect Salad account (opt-in API)</h3>
+<pre class="mermaid">sequenceDiagram
+  participant User
+  participant Settings as Settings tab
+  participant API as Helper :3781
+  participant Browser as Private Edge/Chrome profile
+  User-&gt;&gt;Settings: Connect Salad account
+  Settings-&gt;&gt;API: POST /api/settings/auth/connect
+  API-&gt;&gt;Browser: open salad.com/login
+  loop every 1.5s up to 5 min
+    API-&gt;&gt;Browser: look for auth cookie
+  end
+  API-&gt;&gt;API: write secrets.json · enable saladApi
+  Settings-&gt;&gt;API: poll connect status
+  API--&gt;&gt;Settings: connected</pre>
+<p>Chrome/Salad lock their cookie DBs while running, so scraping them usually fails. <strong>Connect</strong> opens a private profile under <code>…/data/salad-browser-profile/</code>. Manual paste stays under Advanced as fallback.</p>
+<h3>Pause / resume chopping</h3>
+<pre class="mermaid">sequenceDiagram
+  participant UI as Overview
+  participant API as Helper :3781
+  participant Salad as AppData Salad config.json
+  UI-&gt;&gt;API: POST /api/salad/flags&lt;br/&gt;SALAD_CHOPPING_INDEFINITELY_PAUSED
+  API-&gt;&gt;Salad: write allowlisted flag only
+  UI-&gt;&gt;API: GET /api/snapshot
+  API--&gt;&gt;UI: salad.choppingPaused + phase may be paused</pre>
+<p>ChopWatch does <strong>not</strong> invent Bowl Running/Pulling — those still come from Salad logs. Allowlisted writes also cover preference levels and a short list of app flags (<code>SALAD_AUTO_LAUNCH</code>, overlay, etc.).</p>
+<h3>Phase alerts</h3>
+<pre class="mermaid">flowchart LR
+  Watcher[&quot;Helper 5s watcher&quot;] --&gt; Eval[&quot;alerts.js&lt;br/&gt;compare lastPhase&quot;]
+  Eval --&gt; Debounce{&quot;changed + 20s debounce?&quot;}
+  Debounce --&gt;|yes + toast on| Toast[Windows NotifyIcon balloon]
+  UI[&quot;UI 3s poll&quot;] --&gt; Hint{&quot;new alert.at + browser hint?&quot;}
+  Hint --&gt;|yes| Notif[Browser Notification API]</pre>
+<p>Alertable phases include <code>running</code>, <code>downloading</code>, <code>initializing</code>, <code>finding</code>, <code>paused</code>, <code>offline</code>, <code>stopped</code>.</p>
+<p>---</p>
 <h2>Safety boundaries</h2>
 <p>ChopWatch never:</p>
 <ul>
 <li>Reads <code>token.txt</code> or other ProgramData credentials by default (<code>saladPaths.blockedFiles</code>)</li>
 <li>Opens WSL shells or customer container filesystems</li>
 <li>Inspects encrypted workload images or job payloads</li>
+<li>Fakes Bowl job phases</li>
 </ul>
-<p>Optional Salad <code>auth</code> cookie lives only in <code>helper/data/secrets.json</code> (gitignored).</p>
-<h2>Key modules</h2>
+<p>Optional Salad <code>auth</code> cookie lives only in <code>helper/data/secrets.json</code> (dev) or <code>%APPDATA%\ChopWatch\data\secrets.json</code> (packaged) — gitignored. Treat it like a password.</p>
+<pre class="mermaid">flowchart TB
+  subgraph never [Never]
+    N1[token.txt / ProgramData secrets]
+    N2[WSL / customer containers]
+    N3[Encrypted workload images]
+    N4[Invented Bowl phases]
+  end
+
+  subgraph allowed [Allowlisted only]
+    A1[Read Bowl logs + wallet lines]
+    A2[Read nvidia-smi / OS metrics]
+    A3[Write Salad pause + prefs flags]
+    A4[Opt-in Salad API with local cookie]
+  end</pre>
+<p>---</p>
+<h2>API surface</h2>
 <div class="table-wrap"><table>
 <thead><tr>
-<th>Module</th>
-<th>Responsibility</th>
+<th>Route</th>
+<th>Purpose</th>
 </tr></thead><tbody>
 <tr>
-<td><code>bowlLog.js</code></td>
-<td>Parse <code>WLInstanceState*</code> lifecycle events; sessions; finding-job inference</td>
+<td><code>GET /health</code></td>
+<td>Ready check for Electron / scripts</td>
 </tr>
 <tr>
-<td><code>chopHours.js</code></td>
-<td>Integrate active-state time; Star Chef progress estimate</td>
+<td><code>GET /api/snapshot</code></td>
+<td>Full dashboard payload</td>
 </tr>
 <tr>
-<td><code>wallet.js</code></td>
-<td>Bowl <code>Wallet: Current(...), Predicted(...)</code> + heartbeat</td>
+<td><code>GET /api/chop-hours</code></td>
+<td>Chopping-hour series</td>
 </tr>
 <tr>
-<td><code>alerts.js</code></td>
-<td>Phase-change debounce + Windows toast / UI event</td>
+<td><code>GET/POST /api/settings</code></td>
+<td>Alerts / API toggles</td>
 </tr>
 <tr>
-<td><code>saladConnect.js</code></td>
-<td>Private browser profile to capture auth cookie</td>
+<td><code>POST/DELETE /api/settings/auth/connect</code></td>
+<td>Connect Salad browser flow</td>
 </tr>
 <tr>
-<td><code>version.js</code></td>
-<td>Reads product version from root <code>package.json</code></td>
+<td><code>GET /api/salad-account</code></td>
+<td>Opt-in official account summary</td>
+</tr>
+<tr>
+<td><code>POST /api/salad/flags</code> · <code>preferences</code> · <code>controls</code></td>
+<td>Allowlisted Salad writes</td>
 </tr>
 </tbody></table></div>
+<p>---</p>
 <h2>Data on disk</h2>
 <div class="table-wrap"><table>
 <thead><tr>
@@ -212,22 +453,81 @@
 <th>Contents</th>
 </tr></thead><tbody>
 <tr>
-<td><code>helper/data/settings.json</code></td>
+<td><code>helper/data/settings.json</code> (dev) or <code>%APPDATA%\ChopWatch\data\</code> (packaged)</td>
 <td>Alerts / API toggles</td>
 </tr>
 <tr>
-<td><code>helper/data/secrets.json</code></td>
+<td><code>…/secrets.json</code></td>
 <td>Auth cookie (never commit)</td>
 </tr>
 <tr>
-<td><code>helper/data/runtime-state.json</code></td>
+<td><code>…/runtime-state.json</code></td>
 <td>Last phase / alert debounce</td>
 </tr>
 <tr>
-<td><code>helper/data/salad-browser-profile/</code></td>
+<td><code>…/salad-browser-profile/</code></td>
 <td>Private browser profile for Connect</td>
 </tr>
 </tbody></table></div>
+<p>---</p>
+<h2>Release &amp; quality</h2>
+<pre class="mermaid">flowchart LR
+  Commit[Commit on dev] --&gt; Hook[pre-commit PATCH bump]
+  Hook --&gt; CI[CI: test · web build · docs HTML drift]
+  CI --&gt; Tag[tag v*]
+  Tag --&gt; Rel[Release workflow&lt;br/&gt;Windows npm run dist]
+  Rel --&gt; GH[GitHub Release&lt;br/&gt;NSIS + portable]</pre>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Concern</th>
+<th>Mechanism</th>
+</tr></thead><tbody>
+<tr>
+<td>Version SoT</td>
+<td>Root <code>package.json</code>; hook syncs helper/web</td>
+</tr>
+<tr>
+<td>Tests</td>
+<td>Vitest — bowlLog, chopHours, wallet, alerts, logTail, version</td>
+</tr>
+<tr>
+<td>CI</td>
+<td><code>main</code> / <code>dev</code>: test → web build → <code>docs:html</code> (fail on HTML drift)</td>
+</tr>
+<tr>
+<td>Packaging</td>
+<td><code>scripts/pack-desktop.ps1</code> → <code>release/</code></td>
+</tr>
+<tr>
+<td>Signing</td>
+<td>Off today (<code>CSC_IDENTITY_AUTO_DISCOVERY=false</code>); SmartScreen may warn</td>
+</tr>
+</tbody></table></div>
+<p>Edit <code>.md</code> only; regenerate HTML with <code>npm run docs:html</code> / <code>npm run docs:view</code>.</p>
   </main>
+  
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "dark",
+      securityLevel: "strict",
+      flowchart: { htmlLabels: true, curve: "basis" },
+      themeVariables: {
+        primaryColor: "#1a3d2e",
+        primaryTextColor: "#e8f0ea",
+        primaryBorderColor: "#3dcf8e",
+        lineColor: "#9ab0a4",
+        secondaryColor: "#18201c",
+        tertiaryColor: "#0f1412",
+        background: "#18201c",
+        mainBkg: "#1a3d2e",
+        nodeBorder: "#3dcf8e",
+        clusterBkg: "#141c18",
+        titleColor: "#3dcf8e",
+        edgeLabelBackground: "#18201c"
+      }
+    });
+  </script>
 </body>
 </html>

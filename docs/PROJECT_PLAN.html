@@ -31,6 +31,19 @@
       margin: 0 auto;
       padding: 2.5rem 1.25rem 4rem;
     }
+    
+    main { max-width: 58rem; }
+    pre.mermaid {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem 1rem;
+      overflow-x: auto;
+      text-align: center;
+      color: var(--text);
+    }
+    pre.mermaid svg { max-width: 100%; height: auto; }
+
     .meta {
       font-size: 0.8rem;
       color: #8aa090;
@@ -131,30 +144,234 @@
   <main>
     <p class="meta">Generated from <code>PROJECT_PLAN.md</code> · do not edit by hand</p>
     <h1>Project plan</h1>
-<p>ChopWatch is past the first working dashboard. This page tracks the scaffolding and next product steps.</p>
+<p>ChopWatch is past the first working dashboard (v0.5.x). This page is the product roadmap: what shipped, what is next, and how work flows from idea → <code>dev</code> → release.</p>
+<p>---</p>
+<h2>Product intent</h2>
+<p><strong>Watch Chopping without pretending to see inside the job.</strong></p>
+<p>ChopWatch is a local Salad companion for this PC — lifecycle, GPU/host, Bowl wallet lines, chopping hours, phase alerts, and optional official balance/history. It is not a cloud SaaS, not a workload inspector, and not a substitute for Salad’s own app.</p>
+<pre class="mermaid">mindmap
+  root((ChopWatch))
+    See
+      Bowl lifecycle phase
+      GPU / host load
+      Wallet current + predicted
+      Chopping hours estimate
+    Act lightly
+      Pause / resume flag
+      Allowlisted prefs
+      Phase toasts
+    Opt-in
+      Connect Salad cookie
+      Official balance / history
+    Never
+      token.txt
+      Containers / WSL
+      Fake Running phase</pre>
+<p>---</p>
+<h2>Status at a glance</h2>
+<pre class="mermaid">flowchart LR
+  Done[Done&lt;br/&gt;helper · UI · Electron&lt;br/&gt;CI · Releases] --&gt; Near[Near term&lt;br/&gt;parser harden&lt;br/&gt;autostart · signing]
+  Near --&gt; Later[Later&lt;br/&gt;Store / winget&lt;br/&gt;richer Star Chef]</pre>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Horizon</th>
+<th>Themes</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>Done</strong></td>
+<td>Local helper + React tabs, Bowl pipeline, opt-in Salad API, Electron tray, Vitest/CI, Windows NSIS + portable on GitHub Releases</td>
+</tr>
+<tr>
+<td><strong>Near term</strong></td>
+<td>Parser hardening, Start with Windows, code-signing, richer Star Chef signals if Salad exposes them</td>
+</tr>
+<tr>
+<td><strong>Later</strong></td>
+<td>winget / Microsoft Store, promote-<code>dev</code>-to-<code>main</code> script, keep marketing page on welchsoftware.net current</td>
+</tr>
+</tbody></table></div>
+<p>---</p>
 <h2>Done</h2>
 <ul>
 <li>Local helper + React UI (Overview / Details / Settings / About)</li>
 <li>Bowl lifecycle parsing, wallet lines, GPU/host, chopping hours, phase alerts</li>
 <li>Opt-in Salad API + Connect Salad browser capture</li>
+<li>Allowlisted pause/resume and preference edits from Overview</li>
 <li>GitHub repo hygiene: version bump hooks, docs + HTML sisters, Vitest, CI</li>
+<li>Windows packaging (<code>npm run dist</code>) + GitHub Releases workflow</li>
+<li>Electron tray shell (hide-on-close; Quit stops helper)</li>
 </ul>
+<p>---</p>
 <h2>Near term</h2>
-<ul>
-<li>Harden parsers against new Bowl log formats as Salad updates</li>
-<li>Optional tray / start-with-Windows shortcut</li>
-<li>Richer Star Chef / reward progress if Salad exposes clearer signals</li>
-</ul>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Item</th>
+<th>Why</th>
+</tr></thead><tbody>
+<tr>
+<td>Harden Bowl parsers</td>
+<td>Salad log formats change; keep phases honest</td>
+</tr>
+<tr>
+<td>Start-with-Windows shortcut</td>
+<td>Desk chopping should come back after reboot</td>
+</tr>
+<tr>
+<td>Code-sign installers</td>
+<td>Calm SmartScreen / Chrome warnings</td>
+</tr>
+<tr>
+<td>Richer Star Chef / reward progress</td>
+<td>Only if Salad exposes clearer local or API signals</td>
+</tr>
+</tbody></table></div>
+<pre class="mermaid">gantt
+  title Near-term focus (indicative)
+  dateFormat  YYYY-MM
+  section Stability
+  Bowl parser hardening           :a1, 2026-11, 2M
+  section Desktop polish
+  Start with Windows              :a2, 2026-12, 1M
+  Code-sign installers            :a3, 2027-01, 2M
+  section Product depth
+  Star Chef signals if available  :a4, 2027-01, 2M</pre>
+<p>---</p>
 <h2>Later (optional)</h2>
 <ul>
-<li>Public marketing <code>site/</code> if ChopWatch gets a welchsoftware.net page</li>
-<li>Promote <code>dev</code> → <code>main</code> release script (DropToPhone-style) when releases matter</li>
+<li>Keep <a href="https://www.welchsoftware.net/projects/chopwatch">welchsoftware.net/projects/chopwatch</a> and <code>/chopwatch/</code> docs hub in sync with releases</li>
+<li>Promote <code>dev</code> → <code>main</code> release script (DropToPhone-style)</li>
+<li>winget / Microsoft Store once releases and signing are steady</li>
 </ul>
-<h2>Branches</h2>
+<p>---</p>
+<h2>Delivery workflow</h2>
+<p>Day-to-day work stays on <strong><code>dev</code></strong>. Promote to <strong><code>main</code></strong> for a stable line. Tags <code>v*</code> cut Windows artifacts via GitHub Actions.</p>
+<pre class="mermaid">flowchart TB
+  Idea[Idea / bug] --&gt; Dev[Branch work on dev]
+  Dev --&gt; Test[Vitest + manual Overview/Settings]
+  Test --&gt; Docs[Update ARCHITECTURE / PLAN md]
+  Docs --&gt; Html[npm run docs:html]
+  Html --&gt; PR[PR / push to dev]
+  PR --&gt; CI[CI green]
+  CI --&gt; Main[Promote to main when stable]
+  Main --&gt; Tag[git tag vX.Y.Z]
+  Tag --&gt; Rel[Release workflow → NSIS + portable]
+  Rel --&gt; Site[Refresh welchsoftware.net page if needed]</pre>
+<h3>Versioning</h3>
 <ul>
-<li>Day-to-day work on <strong><code>dev</code></strong></li>
-<li>Promote to <strong><code>main</code></strong> for a stable line</li>
+<li>Root <code>package.json</code> is the source of truth</li>
+<li>Pre-commit hook bumps <strong>PATCH</strong> and syncs <code>helper/</code> + <code>web/</code></li>
+<li>Major/minor change by hand for milestones</li>
+<li>See <a href="TESTING.html">TESTING.md</a></li>
 </ul>
+<h3>Docs</h3>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Doc</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td><a href="ARCHITECTURE.html">ARCHITECTURE.md</a></td>
+<td>Processes, snapshot pipeline, workflows, safety</td>
+</tr>
+<tr>
+<td><a href="PROJECT_PLAN.html">PROJECT_PLAN.md</a></td>
+<td>This roadmap</td>
+</tr>
+<tr>
+<td><a href="PRIVACY_POLICY.html">PRIVACY_POLICY.md</a></td>
+<td>What we read / never read</td>
+</tr>
+<tr>
+<td><a href="TESTING.html">TESTING.md</a></td>
+<td>Versions, HTML sisters, Vitest</td>
+</tr>
+</tbody></table></div>
+<p>Regenerate HTML: <code>npm run docs:html</code> · open: <code>npm run docs:view</code></p>
+<p>---</p>
+<h2>Architecture snapshot (for planning)</h2>
+<p>Full detail lives in <a href="ARCHITECTURE.html">ARCHITECTURE.md</a>. Planning view:</p>
+<pre class="mermaid">flowchart LR
+  subgraph product [ChopWatch product]
+    UI[React UI]
+    Helper[Express helper]
+    Desk[Electron tray]
+  end
+  subgraph salad [Salad on this PC]
+    Logs[Bowl logs]
+    Prefs[Prefs / pause flags]
+    Proc[Salad processes]
+  end
+  subgraph opt [Optional]
+    API[Salad app-api]
+  end
+  Desk --&gt; Helper
+  UI --&gt; Helper
+  Helper --&gt; Logs
+  Helper --&gt; Prefs
+  Helper --&gt; Proc
+  Helper -.-&gt; API</pre>
+<p><strong>Non-goals for the current milestone</strong></p>
+<ul>
+<li>Cloud sync or multi-PC fleet dashboard</li>
+<li>Reading customer container filesystems</li>
+<li>Replacing Salad’s own chef UI</li>
+<li>Unsigned Store distribution before signing is in place</li>
+</ul>
+<p>---</p>
+<h2>Success checks</h2>
+<p>A release is “good enough” when:</p>
+<ol>
+<li>Packaged app starts, tray works, helper answers <code>/health</code></li>
+<li>Overview shows a believable phase while Salad is chopping / paused / idle</li>
+<li>Pause/resume flips Salad’s indefinite-pause flag and the next snapshot reflects it</li>
+<li>Connect Salad (or Advanced paste) can populate balance when opted in</li>
+<li><code>npm test</code> and CI docs HTML check stay green</li>
+<li>GitHub Release publishes both NSIS and portable builds</li>
+</ol>
+<p>---</p>
+<h2>Branches</h2>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Branch</th>
+<th>Role</th>
+</tr></thead><tbody>
+<tr>
+<td><code>dev</code></td>
+<td>Day-to-day work</td>
+</tr>
+<tr>
+<td><code>main</code></td>
+<td>Stable line</td>
+</tr>
+<tr>
+<td><code>v*</code> tags</td>
+<td>Windows release artifacts</td>
+</tr>
+</tbody></table></div>
   </main>
+  
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "dark",
+      securityLevel: "strict",
+      flowchart: { htmlLabels: true, curve: "basis" },
+      themeVariables: {
+        primaryColor: "#1a3d2e",
+        primaryTextColor: "#e8f0ea",
+        primaryBorderColor: "#3dcf8e",
+        lineColor: "#9ab0a4",
+        secondaryColor: "#18201c",
+        tertiaryColor: "#0f1412",
+        background: "#18201c",
+        mainBkg: "#1a3d2e",
+        nodeBorder: "#3dcf8e",
+        clusterBkg: "#141c18",
+        titleColor: "#3dcf8e",
+        edgeLabelBackground: "#18201c"
+      }
+    });
+  </script>
 </body>
 </html>

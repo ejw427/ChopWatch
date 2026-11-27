@@ -3,10 +3,21 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dataDir = path.join(__dirname, "..", "data");
+
+function resolveDataDir() {
+  const fromEnv = String(process.env.CHOPWATCH_DATA_DIR || "").trim();
+  if (fromEnv) return path.resolve(fromEnv);
+  return path.join(__dirname, "..", "data");
+}
+
+const dataDir = resolveDataDir();
 const settingsPath = path.join(dataDir, "settings.json");
 const secretsPath = path.join(dataDir, "secrets.json");
 const statePath = path.join(dataDir, "runtime-state.json");
+
+export function getDataDir() {
+  return dataDir;
+}
 
 function ensureDir() {
   if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });

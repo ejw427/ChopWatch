@@ -1,16 +1,86 @@
 {
   "name": "chopwatch-desktop",
-  "version": "0.1.0",
+  "version": "0.5.2",
   "private": true,
   "description": "Electron shell for ChopWatch",
+  "author": "Eric Welch",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --win"
   },
   "devDependencies": {
-    "electron": "^37.2.0"
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12"
   },
   "allowScripts": {
-    "electron@37.10.3": true
+    "electron@37.10.3": true,
+    "electron-winstaller@5.4.0": true
+  },
+  "build": {
+    "appId": "net.welchsoftware.chopwatch",
+    "productName": "ChopWatch",
+    "copyright": "Copyright © Eric Welch",
+    "directories": {
+      "output": "../release",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "assets/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../build/helper-pack",
+        "to": "helper",
+        "filter": [
+          "package.json",
+          "src/**",
+          "scripts/**"
+        ]
+      },
+      {
+        "from": "../build/helper-pack/node_modules",
+        "to": "helper/node_modules"
+      },
+      {
+        "from": "../web/dist",
+        "to": "ui"
+      },
+      {
+        "from": "../package.json",
+        "to": "package.json"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "${productName}-${version}-win-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ChopWatch"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-win-${arch}-portable.${ext}"
+    }
   }
 }

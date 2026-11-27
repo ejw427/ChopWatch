@@ -10,12 +10,14 @@ $packageJsonPath = Join-Path $repoRoot 'package.json'
 $packageLockPath = Join-Path $repoRoot 'package-lock.json'
 $helperPackagePath = Join-Path $repoRoot 'helper\package.json'
 $webPackagePath = Join-Path $repoRoot 'web\package.json'
+$desktopPackagePath = Join-Path $repoRoot 'desktop\package.json'
 
 $versionFiles = @(
     'package.json',
     'package-lock.json',
     'helper/package.json',
-    'web/package.json'
+    'web/package.json',
+    'desktop/package.json'
 )
 
 function Get-PackageVersion([string]$JsonPath) {
@@ -95,6 +97,7 @@ if ($afterVersion -eq $beforeVersion) {
 # Keep workspace packages on the same product version.
 Set-PackageVersion $helperPackagePath $afterVersion
 Set-PackageVersion $webPackagePath $afterVersion
+Set-PackageVersion $desktopPackagePath $afterVersion
 
 Push-Location $repoRoot
 try {
