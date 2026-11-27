@@ -229,6 +229,38 @@ input {
   color: var(--muted);
 }
 
+.pill.earn {
+  border-color: rgba(182, 242, 109, 0.22);
+  background:
+    linear-gradient(145deg, rgba(182, 242, 109, 0.08), transparent 60%),
+    rgba(255, 255, 255, 0.02);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.pill.earn.live {
+  border-color: rgba(182, 242, 109, 0.4);
+  background:
+    linear-gradient(145deg, rgba(182, 242, 109, 0.14), transparent 55%),
+    rgba(0, 0, 0, 0.22);
+  color: var(--text);
+}
+
+.pill-earn-rate {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.pill-earn-sep {
+  margin: 0 2px;
+  opacity: 0.55;
+}
+
+.pill-earn-session {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .info-tip {
   position: relative;
   display: inline-flex;
@@ -653,7 +685,7 @@ input {
   overflow: visible;
   display: grid;
   grid-template-columns: minmax(260px, 0.9fr) minmax(0, 1.35fr);
-  gap: 16px 24px;
+  gap: 12px 20px;
   align-items: start;
   border: 1px solid var(--line);
   border-radius: calc(var(--radius) + 4px);
@@ -661,8 +693,8 @@ input {
     linear-gradient(135deg, rgba(182, 242, 109, 0.1), transparent 40%),
     var(--bg-panel);
   box-shadow: var(--shadow);
-  padding: 20px 22px;
-  margin-bottom: 14px;
+  padding: 14px 18px;
+  margin-bottom: 12px;
 }
 
 .chop-command {
@@ -1113,8 +1145,28 @@ button.hero-metric:focus-visible {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 6px;
+}
+
+.work-facts.cols-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.work-facts.cols-5 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.work-facts.cols-6 {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.work-facts.cols-11,
+.work-facts.cols-12,
+.work-facts.cols-17,
+.work-facts.cols-18,
+.work-facts.cols-19 {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 .work-fact {
@@ -1169,7 +1221,15 @@ button.hero-metric:focus-visible {
   .hero {
     grid-template-columns: 1fr;
   }
-  .work-facts {
+  .work-facts,
+  .work-facts.cols-4,
+  .work-facts.cols-5,
+  .work-facts.cols-6,
+  .work-facts.cols-11,
+  .work-facts.cols-12,
+  .work-facts.cols-17,
+  .work-facts.cols-18,
+  .work-facts.cols-19 {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .hero-metrics {
@@ -1178,7 +1238,15 @@ button.hero-metric:focus-visible {
 }
 
 @media (max-width: 620px) {
-  .work-facts {
+  .work-facts,
+  .work-facts.cols-4,
+  .work-facts.cols-5,
+  .work-facts.cols-6,
+  .work-facts.cols-11,
+  .work-facts.cols-12,
+  .work-facts.cols-17,
+  .work-facts.cols-18,
+  .work-facts.cols-19 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -1191,12 +1259,22 @@ button.hero-metric:focus-visible {
 }
 
 .phase-kicker {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
   font-family: "IBM Plex Mono", monospace;
   font-size: 0.6rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--accent-dim);
   margin: 0 0 4px;
+}
+
+.phase-version {
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: var(--muted);
+  opacity: 0.9;
 }
 
 .phase-title {
@@ -1641,6 +1719,12 @@ button.gauge {
   color: var(--muted);
   font-size: 0.82rem;
   line-height: 1.4;
+}
+
+/* Feedback under status pills (not the intro hint under h2) */
+.panel .meta + .hint,
+.panel .meta + .hint + .hint {
+  margin-top: 18px;
 }
 
 .proc-list,

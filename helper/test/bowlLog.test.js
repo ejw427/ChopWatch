@@ -52,6 +52,43 @@ describe("parseStates", () => {
 `;
     expect(parseStates(noise)).toEqual([]);
   });
+
+  it("parses Starting with ProcessWLStatusEvent bracket and UTC stamps", () => {
+    const text = `
+2026-11-27 03:13:24.908 +00:00 [INF] SendStateChange(SourceId { Id = aaa-bbb-ccc, Name = Starting - WLInstanceStateStarting[abc12345][ProcessWLStatusEvent] - 00:01:00.0007409] })
+`.trim();
+    const events = parseStates(text);
+    expect(events).toHaveLength(1);
+    expect(events[0].state).toBe("Starting");
+    expect(events[0].phase).toBe("initializing");
+    expect(events[0].shortId).toBe("abc12345");
+    expect(events[0].at).toContain("+00:00");
+    expect(events[0].elapsed).toMatch(/00:01:00/);
+  });
+
+  it("parses Stopped without a stop reason and sparse Progress-only Pulling", () => {
+    const text = `
+2026-11-26 11:00:00.000 -07:00 [INF] SendStateChange(SourceId { Id = ddd-eee-fff, Name = Pulling - WLInstanceStatePulling(def456aa - 00:00:00), Progress(0) })
+2026-11-26 11:05:00.000 -07:00 [INF] GetMetrics(SourceId { Id = ddd-eee-fff, Name = Stopped - WLInstanceStateStopped(def456aa - 00:05:00.0011055) })
+`.trim();
+    const events = parseStates(text);
+    expect(events.map((e) => e.state)).toEqual(["Pulling", "Stopped"]);
+    expect(events[0].progress).toBe(0);
+    expect(events[0].phase).toBe("downloading");
+    expect(events[1].stopReason).toBeNull();
+    expect(events[1].phase).toBe("stopped");
+  });
+
+  it("parses Running that arrives without a prior Pulling event", () => {
+    const text = `
+2026-11-26 10:02:00.000 -07:00 [INF] GetMetrics(SourceId { Id = aaa-bbb-ccc, Name = Running - WLInstanceStateRunning[abc12345] - 00:02:00.0016893] })
+`.trim();
+    const events = parseStates(text);
+    expect(events).toHaveLength(1);
+    expect(events[0].state).toBe("Running");
+    expect(events[0].phase).toBe("running");
+    expect(events[0].progress).toBeNull();
+  });
 });
 
 describe("parsePullProgress", () => {
@@ -149,6 +186,26 @@ describe("inferFinding", () => {
     );
     expect(r.phase).toBe("finding");
   });
+
+  it("ages out stale InstallStarting / Starting the same way", () => {
+    expect(
+      inferFinding(true, { state: "InstallStarting", shortId: "abc" }, 700, false)
+        .phase,
+    ).toBe("finding");
+    expect(
+      inferFinding(true, { state: "Starting", shortId: "abc" }, 700, false).phase,
+    ).toBe("finding");
+  });
+
+  it("keeps a fresh Stopped job sticky before the finding handoff", () => {
+    const r = inferFinding(
+      true,
+      { state: "Stopped", shortId: "abc" },
+      10,
+      false,
+    );
+    expect(r).toBeNull();
+  });
 });
 
 describe("buildSessions", () => {
@@ -164,5 +221,30 @@ describe("buildSessions", () => {
     expect(sessions[1].peakProgress).toBeCloseTo(0.35);
     expect(sessions[1].runningAt).toBeTruthy();
     expect(sessions[1].startedAt).toBeTruthy();
+  });
+
+  it("does not invent Running when a pull never reaches Running", () => {
+    const text = `
+2026-11-26 11:00:00.000 -07:00 [INF] SendStateChange(SourceId { Id = ddd-eee-fff, Name = Pulling - WLInstanceStatePulling(def456aa - 00:00:00), Progress(0.10) })
+2026-11-26 11:05:00.000 -07:00 [INF] GetMetrics(SourceId { Id = ddd-eee-fff, Name = Stopped - WLInstanceStateStopped(def456aa - 00:05:00.0011055), Stopped with Reason(ExitRequested) })
+`.trim();
+    const sessions = buildSessions(parseStates(text));
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].sawPulling).toBe(true);
+    expect(sessions[0].sawRunning).toBe(false);
+    expect(sessions[0].runningAt).toBeNull();
+    expect(sessions[0].endedAt).toBeTruthy();
+    expect(sessions[0].lastState).toBe("Stopped");
+  });
+
+  it("marks Running without inventing a prior Pulling", () => {
+    const text = `
+2026-11-26 10:02:00.000 -07:00 [INF] GetMetrics(SourceId { Id = aaa-bbb-ccc, Name = Running - WLInstanceStateRunning[abc12345] - 00:02:00.0016893] })
+`.trim();
+    const sessions = buildSessions(parseStates(text));
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].sawRunning).toBe(true);
+    expect(sessions[0].sawPulling).toBe(false);
+    expect(sessions[0].runningAt).toBe("2026-11-26 10:02:00.000 -07:00");
   });
 });

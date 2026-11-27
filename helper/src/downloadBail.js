@@ -60,15 +60,21 @@ function settingsNorm(settings = {}) {
   };
 }
 
+const UNPAID_PHASES = new Set(["downloading", "initializing"]);
+
+function isUnpaidPhase(phase) {
+  return UNPAID_PHASES.has(phase);
+}
+
 /**
- * Track Bowl Pulling progress + ETA trend.
+ * Track Bowl Pulling / Initializing progress + ETA trend.
  * Returns a patch for runtime state (may be empty).
  */
 export function trackDownloadProgress(work, state, now, settings = {}) {
   const cfg = settingsNorm(settings);
   const maxEtaMs = cfg.maxEtaMinutes * 60_000;
 
-  if (work?.phase !== "downloading") {
+  if (!isUnpaidPhase(work?.phase)) {
     const clear = {};
     if (state.downloadBailProgressShortId != null) {
       clear.downloadBailProgressShortId = null;
@@ -229,7 +235,7 @@ export function evaluateDownloadBail(work, settings, state, now, opts = {}) {
     };
   }
 
-  if (!force && work?.phase !== "downloading") {
+  if (!force && !isUnpaidPhase(work?.phase)) {
     return { action: "none", reason: null, status: baseStatus };
   }
 
@@ -311,6 +317,8 @@ export function evaluateDownloadBail(work, settings, state, now, opts = {}) {
       : null;
   let reason = null;
 
+  const initializing = work?.phase === "initializing";
+
   if (force) {
     reason = "manual";
   } else if (sessionAgeMs < graceMs) {
@@ -318,6 +326,16 @@ export function evaluateDownloadBail(work, settings, state, now, opts = {}) {
     reason = null;
   } else if (sessionAgeMs >= maxMs) {
     reason = `max_age_${cfg.maxMinutes}m`;
+  } else if (initializing) {
+    // Initializing has no pull ETA — only max age (above) or progress stall.
+    const progressAt = state.downloadBailProgressAt;
+    const stalled =
+      progressAt != null &&
+      now - progressAt >= stallMs &&
+      state.downloadBailProgressShortId === shortId;
+    if (stalled) {
+      reason = `stall_${cfg.stallMinutes}m`;
+    }
   } else {
     const etaOverSince =
       state.downloadBailEtaOverShortId === shortId
@@ -515,11 +533,12 @@ export function getDownloadBailStatus(work, choppingPaused = false, deps = {}) {
 
 /** Manual skip: force pause→resume even if auto disabled / under threshold. */
 export function manualDownloadBail(work, choppingPaused = false, deps = {}) {
-  if (work?.phase !== "downloading" && deps.forcePhaseCheck !== false) {
+  if (!isUnpaidPhase(work?.phase) && deps.forcePhaseCheck !== false) {
     return {
       ok: false,
-      error: "not_downloading",
-      message: "Skip download only applies while Salad is Downloading Job.",
+      error: "not_unpaid",
+      message:
+        "Skip only applies while Salad is Downloading or Initializing (unpaid).",
       status: getDownloadBailStatus(work, choppingPaused, deps),
     };
   }
@@ -539,5 +558,7 @@ export {
   MAX_SAME_INSTANCE_RETRIES,
   SAME_INSTANCE_BLACKOUT_MS,
   ETA_IMPROVE_FRAC,
+  UNPAID_PHASES,
+  isUnpaidPhase,
   settingsNorm,
 };

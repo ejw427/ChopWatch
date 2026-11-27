@@ -125,7 +125,7 @@ describe("trackDownloadProgress", () => {
 });
 
 describe("evaluateDownloadBail", () => {
-  it("ignores non-downloading phases", () => {
+  it("ignores paid / idle phases", () => {
     const r = evaluateDownloadBail(
       { phase: "running", shortId: "x", sessionAgeSec: 9999 },
       defaultSettings,
@@ -134,6 +134,17 @@ describe("evaluateDownloadBail", () => {
     );
     expect(r.action).toBe("none");
     expect(r.status.status).toBe("idle");
+  });
+
+  it("bails stuck initializing on max age", () => {
+    const r = evaluateDownloadBail(
+      { phase: "initializing", shortId: "abc", sessionAgeSec: 31 * 60 },
+      defaultSettings,
+      blankState(),
+      NOW,
+    );
+    expect(r.action).toBe("pause");
+    expect(r.reason).toBe("max_age_30m");
   });
 
   it("waits through grace even with huge ETA", () => {
@@ -320,11 +331,11 @@ describe("runDownloadBailStep", () => {
 });
 
 describe("manualDownloadBail", () => {
-  it("rejects when not downloading", () => {
+  it("rejects when not unpaid", () => {
     const { deps } = makeDeps();
     const r = manualDownloadBail({ phase: "running" }, false, deps);
     expect(r.ok).toBe(false);
-    expect(r.error).toBe("not_downloading");
+    expect(r.error).toBe("not_unpaid");
   });
 
   it("forces bail while downloading", () => {
@@ -332,6 +343,17 @@ describe("manualDownloadBail", () => {
     const r = manualDownloadBail(
       { phase: "downloading", shortId: "z", sessionAgeSec: 10, progress: 0.01 },
       false,
+      deps,
+    );
+    expect(r.ok).toBe(true);
+    expect(flags[0].SALAD_CHOPPING_INDEFINITELY_PAUSED).toBe(true);
+  });
+
+  it("forces bail while initializing even if already paused", () => {
+    const { deps, flags } = makeDeps({}, { downloadBailEnabled: false });
+    const r = manualDownloadBail(
+      { phase: "initializing", shortId: "z", sessionAgeSec: 10 },
+      true,
       deps,
     );
     expect(r.ok).toBe(true);

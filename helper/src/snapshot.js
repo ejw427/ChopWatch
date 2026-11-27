@@ -6,8 +6,9 @@ import { readGpuSnapshot } from "./gpu.js";
 import { readHostSnapshot } from "./host.js";
 import { readWalletAndHeartbeat } from "./wallet.js";
 import { readChopHours } from "./chopHours.js";
-import { evaluatePhaseAlert } from "./alerts.js";
+import { readLastAlertEvent } from "./alerts.js";
 import { getDownloadBailStatus } from "./downloadBail.js";
+import { applySessionEarnings } from "./sessionEarnings.js";
 import { fetchSaladAccount } from "./saladApi.js";
 import { readSettings, authCookiePresent } from "./store.js";
 import { paths, exists } from "./saladPaths.js";
@@ -21,8 +22,17 @@ export async function buildSnapshot() {
   const gpu = readGpuSnapshot();
   const host = readHostSnapshot();
   const { wallet, heartbeat } = readWalletAndHeartbeat();
+  const sessionEarn = applySessionEarnings(work.current, wallet);
+  const walletOut = wallet
+    ? {
+        ...wallet,
+        sessionEarned: sessionEarn.sessionEarned,
+        sessionStartBalance: sessionEarn.sessionStartBalance,
+        sessionRunningSinceAt: sessionEarn.sessionRunningSinceAt,
+      }
+    : null;
   const chopHours = readChopHours();
-  const alert = evaluatePhaseAlert(work.current);
+  const alert = readLastAlertEvent();
   const settings = readSettings();
   const downloadBail = getDownloadBailStatus(work.current, prefs.choppingPaused);
   const saladAccount = await fetchSaladAccount(false);
@@ -48,7 +58,7 @@ export async function buildSnapshot() {
     sessions: work.sessions,
     logFiles: work.logFiles,
     workNote: work.note,
-    wallet,
+    wallet: walletOut,
     heartbeat,
     gpu,
     host,
@@ -58,7 +68,7 @@ export async function buildSnapshot() {
     config: prefs.config,
     appFlags: prefs.appFlags,
     disk,
-    alert: alert.event,
+    alert,
     settings: {
       ...settings,
       authCookieConfigured: authCookiePresent(),

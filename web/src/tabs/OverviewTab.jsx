@@ -13,10 +13,13 @@ import {
   formatGiBFromMiB,
   formatMemPairFromMiB,
   formatMemPairFromMb,
+  formatMoney,
   formatProcMemory,
   formatStamp,
   formatTempC,
   formatWatts,
+  moneyPerHourFromDaily,
+  predictedDailyRate,
 } from "../format.js";
 import {
   fetchSnapshot,
@@ -60,19 +63,46 @@ function phaseDot(phase) {
   return "";
 }
 
+function tempTone(tempC) {
+  if (tempC == null || !Number.isFinite(Number(tempC))) return undefined;
+  const t = Number(tempC);
+  if (t >= 90) return "bad";
+  if (t >= 80) return "warn";
+  return "ok";
+}
+
+function bailTone(status) {
+  if (!status || status.status === "disabled" || status.status === "idle") return undefined;
+  if (status.status === "watching") return "ok";
+  if (
+    status.status === "cooldown" ||
+    status.status === "pausing" ||
+    status.status === "bailing" ||
+    status.status === "resuming"
+  ) {
+    return "warn";
+  }
+  return undefined;
+}
+
+function bailLabel(status) {
+  if (!status || status.enabled === false || status.status === "disabled") return "off";
+  const s = status.status || "idle";
+  if (s === "watching" && status.reason === "grace") return "grace";
+  if (s === "watching" && status.reason === "user_paused") return "paused";
+  return s;
+}
+
+function formatSessionEarned(earned) {
+  if (earned == null || !Number.isFinite(Number(earned))) return "—";
+  const n = Number(earned);
+  if (n > 0) return `+${formatMoney(n)}`;
+  return formatMoney(Math.max(0, n));
+}
+
 function pct(progress) {
   if (progress == null || !Number.isFinite(progress)) return null;
   return Math.max(0, Math.min(100, Math.round(progress * 100)));
-}
-
-function money(v) {
-  if (v == null || !Number.isFinite(Number(v))) return "—";
-  return `$${Number(v).toFixed(2)}`;
-}
-
-function moneyPerHour(predictedPerDay) {
-  if (predictedPerDay == null || !Number.isFinite(Number(predictedPerDay))) return null;
-  return Number(predictedPerDay) / 24;
 }
 
 function pickBalance(balance) {
@@ -106,6 +136,8 @@ export default function OverviewTab({ snap, setSnap }) {
   const downloading = work?.phase === "downloading";
   const gpu0 = snap?.gpu?.gpus?.[0];
   const wallet = snap?.wallet;
+  const predictedDay = predictedDailyRate(wallet?.predicted);
+  const predictedHour = moneyPerHourFromDaily(predictedDay);
   const hours = snap?.chopHours;
   const prefs = snap?.preferences || {};
   const flags = snap?.appFlags || {};
@@ -275,6 +307,7 @@ export default function OverviewTab({ snap, setSnap }) {
     [prefs],
   );
 
+  // Full catalog kept for modal deep-dives; hero only shows a short strip.
   const facts = useMemo(() => {
     const peakPull =
       session?.peakProgress != null
@@ -342,6 +375,7 @@ export default function OverviewTab({ snap, setSnap }) {
                     ? snap.downloadBail.status || "on"
                     : "off",
                 },
+                { label: "Peak pull", value: peakPull },
               ],
               controls: chopControls,
             },
@@ -376,7 +410,11 @@ export default function OverviewTab({ snap, setSnap }) {
         label: "Instance",
         value: work?.shortId || "—",
         body: "Short Salad lifecycle instance id. This is a host token, not a customer job name.",
-        rows: [{ label: "Full short id", value: work?.shortId }],
+        rows: [
+          { label: "Full short id", value: work?.shortId },
+          { label: "Title", value: work?.title },
+          { label: "Detail", value: work?.detail },
+        ],
         controls: chopControls,
       },
       {
@@ -397,18 +435,11 @@ export default function OverviewTab({ snap, setSnap }) {
         value: formatDuration(sessionFor),
         body: "Time since this instance first appeared, including download and start.",
         rows: [
-          { label: "Session started", value: formatStamp(work?.sessionStartedAt || session?.startedAt) },
-        ],
-        controls: chopControls,
-      },
-      {
-        id: "lastLog",
-        label: "Last log",
-        value: formatStamp(work?.at),
-        body: "Newest WLInstanceState line used for status. Read-only; use Pause if you want Salad to stop.",
-        rows: [
-          { label: "Raw stamp", value: work?.at },
-          { label: "Age", value: formatAge(work?.ageSec) },
+          {
+            label: "Session started",
+            value: formatStamp(work?.sessionStartedAt || session?.startedAt),
+          },
+          { label: "Ended", value: formatStamp(session?.endedAt) },
         ],
         controls: chopControls,
       },
@@ -417,7 +448,13 @@ export default function OverviewTab({ snap, setSnap }) {
         label: "Log age",
         value: formatAge(work?.ageSec),
         body: "How long ago that lifecycle line was written. Running often stays quiet after the first Running line.",
-        rows: [{ label: "Age (sec)", value: work?.ageSec != null ? Math.round(work.ageSec) : "—" }],
+        rows: [
+          { label: "Last log", value: formatStamp(work?.at) },
+          {
+            label: "Age (sec)",
+            value: work?.ageSec != null ? Math.round(work.ageSec) : "—",
+          },
+        ],
         controls: chopControls,
       },
       {
@@ -448,98 +485,32 @@ export default function OverviewTab({ snap, setSnap }) {
         controls: chopControls,
       },
       {
-        id: "gpuNow",
-        label: "GPU now",
-        value: gpu0?.utilGpuPct != null ? `${gpu0.utilGpuPct}%` : "—",
-        tone: "ok",
-        body: "Live GPU compute utilization. Workload preference levels below are written to Salad preferences.txt.",
+        id: "chop24",
+        label: "Chop 24h",
+        value: hours?.last24hHours != null ? `${hours.last24hHours}h` : "—",
+        body: "Estimated chopping hours from Bowl state samples. Preference levels affect future work Salad accepts.",
         rows: [
-          { label: "GPU", value: gpu0?.name },
-          { label: "Util", value: gpu0?.utilGpuPct != null ? `${gpu0.utilGpuPct}%` : "—" },
-        ],
-        controls: [...chopControls, ...workloadControls],
-      },
-      {
-        id: "gpuTempPower",
-        label: "GPU temp / power",
-        value: gpu0
-          ? `${formatTempC(gpu0.tempC)} · ${formatWatts(gpu0.powerW)}`
-          : "—",
-        body: "Temperature and power from nvidia-smi. Preference controls change how hard Salad may use the GPU when you’re active/idle.",
-        rows: [
-          { label: "Temperature", value: formatTempC(gpu0?.tempC) },
-          { label: "Power draw", value: formatWatts(gpu0?.powerW) },
-          { label: "Power limit", value: formatWatts(gpu0?.powerLimitW) },
           {
-            label: "Power %",
-            value: gpu0?.powerPct != null ? `${gpu0.powerPct}%` : "—",
-          },
-        ],
-        controls: workloadControls,
-      },
-      {
-        id: "vram",
-        label: "VRAM",
-        value:
-          memUsed != null && memTotal != null
-            ? formatMemPairFromMiB(memUsed, memTotal)
-            : "—",
-        body: "Video memory used/total in GB. Container / mining toggles affect what Salad is willing to run.",
-        rows: [
-          { label: "Used", value: formatGiBFromMiB(memUsed) },
-          { label: "Total", value: formatGiBFromMiB(memTotal) },
-          {
-            label: "Fill",
-            value: gpu0?.utilMemPct != null ? `${gpu0.utilMemPct}%` : "—",
+            label: "Last 24h",
+            value: hours?.last24hHours != null ? `${hours.last24hHours}h` : "—",
           },
           {
-            label: "Controller busy",
+            label: "Last 7d",
+            value: hours?.last7dHours != null ? `${hours.last7dHours}h` : "—",
+          },
+          {
+            label: "Last 30d",
+            value: hours?.last30dHours != null ? `${hours.last30dHours}h` : "—",
+          },
+          {
+            label: "Star Chef",
             value:
-              gpu0?.memControllerBusyPct != null
-                ? `${gpu0.memControllerBusyPct}%`
+              hours?.starChefProgressPct != null
+                ? `${hours.starChefProgressPct}% of ~${hours.starChefTargetHours ?? 50}h`
                 : "—",
           },
         ],
-        controls: workloadControls,
-      },
-      {
-        id: "wallet",
-        label: "Wallet / predicted",
-        value:
-          wallet?.current != null
-            ? `${money(wallet.current)} · ${money(wallet.predicted)}/d`
-            : "—",
-        body: "Bowl Wallet lines plus optional official API. Toggle API and refresh from here.",
-        rows: [
-          { label: "Current", value: money(wallet?.current) },
-          { label: "Predicted / day", value: money(wallet?.predicted) },
-          { label: "Wallet age", value: formatAge(wallet?.ageSec) },
-          { label: "API balance", value: money(apiBalance) },
-        ],
-        controls: [
-          {
-            id: "apiOn",
-            type: "toggle",
-            label: "Official Salad API",
-            help: "Pull balance from Salad’s official API (needs a connected account in Settings).",
-            group: "api",
-            groupLabel: "Salad API",
-            kind: "setting",
-            key: "saladApiEnabled",
-            value: settings.saladApiEnabled === true,
-          },
-          {
-            id: "refreshApi",
-            type: "button",
-            primary: true,
-            label: "Refresh API balance",
-            help: "Fetch the latest official balance now.",
-            group: "api",
-            groupLabel: "Salad API",
-            kind: "refreshApi",
-            disabled: settings.saladApiEnabled !== true || !settings.authCookieConfigured,
-          },
-        ],
+        controls: [...chopControls, ...workloadControls],
       },
       {
         id: "heartbeat",
@@ -603,19 +574,263 @@ export default function OverviewTab({ snap, setSnap }) {
         controls: chopControls,
       },
       {
-        id: "chop24",
-        label: "Chop 24h",
-        value: hours?.last24hHours != null ? `${hours.last24hHours}h` : "—",
-        body: "Estimated chopping hours from Bowl state samples. Preference levels affect future work Salad accepts.",
+        id: "gpuTemp",
+        label: "GPU temp",
+        value: formatTempC(gpu0?.tempC),
+        tone: tempTone(gpu0?.tempC),
+        body: "GPU temperature from nvidia-smi. Sustained heat usually tracks sustained util and power.",
         rows: [
-          { label: "Last 24h", value: hours?.last24hHours != null ? `${hours.last24hHours}h` : "—" },
-          { label: "Last 7d", value: hours?.last7dHours != null ? `${hours.last7dHours}h` : "—" },
-          { label: "Last 30d", value: hours?.last30dHours != null ? `${hours.last30dHours}h` : "—" },
+          { label: "GPU", value: gpu0?.name || "—" },
+          { label: "Temperature", value: formatTempC(gpu0?.tempC) },
+          {
+            label: "Util",
+            value: gpu0?.utilGpuPct != null ? `${gpu0.utilGpuPct}%` : "—",
+          },
+          { label: "Power draw", value: formatWatts(gpu0?.powerW) },
+        ],
+        controls: [...chopControls, ...workloadControls],
+      },
+      {
+        id: "gpuPower",
+        label: "Power",
+        value:
+          gpu0?.powerW != null
+            ? `${formatWatts(gpu0.powerW)}${
+                gpu0.powerPct != null ? ` · ${Math.round(gpu0.powerPct)}%` : ""
+              }`
+            : "—",
+        tone: gpu0?.powerPct != null && gpu0.powerPct >= 85 ? "warn" : undefined,
+        body: "Instant GPU power draw vs the card’s power limit (nvidia-smi).",
+        rows: [
+          { label: "Draw", value: formatWatts(gpu0?.powerW) },
+          { label: "Limit", value: formatWatts(gpu0?.powerLimitW) },
+          {
+            label: "Power %",
+            value: gpu0?.powerPct != null ? `${gpu0.powerPct}%` : "—",
+          },
+          { label: "Temperature", value: formatTempC(gpu0?.tempC) },
+          { label: "GPU", value: gpu0?.name || "—" },
+        ],
+        controls: [...chopControls, ...workloadControls],
+      },
+      {
+        id: "vram",
+        label: "VRAM",
+        value:
+          memUsed != null && memTotal != null
+            ? formatMemPairFromMiB(memUsed, memTotal)
+            : "—",
+        tone:
+          gpu0?.utilMemPct != null && gpu0.utilMemPct >= 90 ? "warn" : undefined,
+        body: "Video memory used ÷ total. Separate from memory-controller busy time.",
+        rows: [
+          { label: "Used", value: formatGiBFromMiB(memUsed) },
+          { label: "Total", value: formatGiBFromMiB(memTotal) },
+          {
+            label: "Fill",
+            value: gpu0?.utilMemPct != null ? `${gpu0.utilMemPct}%` : "—",
+          },
+          {
+            label: "Controller busy",
+            value:
+              gpu0?.memControllerBusyPct != null
+                ? `${Math.round(gpu0.memControllerBusyPct)}%`
+                : "—",
+          },
+        ],
+        controls: [...chopControls, ...workloadControls],
+      },
+      {
+        id: "thisRun",
+        label: "This run",
+        value: formatSessionEarned(
+          work?.phase === "running" ? wallet?.sessionEarned : null,
+        ),
+        tone:
+          work?.phase === "running" &&
+          wallet?.sessionEarned != null &&
+          Number(wallet.sessionEarned) > 0
+            ? "ok"
+            : undefined,
+        body: "Balance gained since this Running instance started (Bowl Wallet delta).",
+        rows: [
+          {
+            label: "Earned this run",
+            value: formatSessionEarned(
+              work?.phase === "running" ? wallet?.sessionEarned : null,
+            ),
+          },
+          {
+            label: "Start balance",
+            value: formatMoney(wallet?.sessionStartBalance),
+          },
+          { label: "Current balance", value: formatMoney(wallet?.current) },
+          {
+            label: "Running since",
+            value: formatStamp(
+              wallet?.sessionRunningSinceAt || work?.runningSinceAt,
+            ),
+          },
+        ],
+        controls: chopControls,
+      },
+      {
+        id: "chop7",
+        label: "Chop 7d",
+        value: hours?.last7dHours != null ? `${hours.last7dHours}h` : "—",
+        body: "Estimated chopping hours over the last 7 days from Bowl state samples.",
+        rows: [
+          {
+            label: "Last 24h",
+            value: hours?.last24hHours != null ? `${hours.last24hHours}h` : "—",
+          },
+          {
+            label: "Last 7d",
+            value: hours?.last7dHours != null ? `${hours.last7dHours}h` : "—",
+          },
+          {
+            label: "Last 30d",
+            value: hours?.last30dHours != null ? `${hours.last30dHours}h` : "—",
+          },
           {
             label: "Star Chef",
             value:
               hours?.starChefProgressPct != null
                 ? `${hours.starChefProgressPct}% of ~${hours.starChefTargetHours ?? 50}h`
+                : "—",
+          },
+        ],
+        controls: [...chopControls, ...workloadControls],
+      },
+      {
+        id: "starChef",
+        label: "Star Chef",
+        value:
+          hours?.starChefProgressPct != null
+            ? `${hours.starChefProgressPct}%`
+            : "—",
+        tone:
+          hours?.starChefProgressPct != null && hours.starChefProgressPct >= 100
+            ? "ok"
+            : undefined,
+        body: "Rough progress toward ~50 chopping hours / week (Star Chef style estimate).",
+        rows: [
+          {
+            label: "Progress",
+            value:
+              hours?.starChefProgressPct != null
+                ? `${hours.starChefProgressPct}%`
+                : "—",
+          },
+          {
+            label: "Target",
+            value: `~${hours?.starChefTargetHours ?? 50}h / week`,
+          },
+          {
+            label: "Last 7d",
+            value: hours?.last7dHours != null ? `${hours.last7dHours}h` : "—",
+          },
+        ],
+        controls: [...chopControls, ...workloadControls],
+      },
+      {
+        id: "autoBail",
+        label: "Auto-bail",
+        value: bailLabel(snap?.downloadBail),
+        tone: bailTone(snap?.downloadBail),
+        body: "ChopWatch download auto-bail: skip stuck/slow unpaid pulls so Salad can re-roll work.",
+        rows: [
+          {
+            label: "Enabled",
+            value: snap?.downloadBail?.enabled === false ? "no" : "yes",
+          },
+          { label: "Status", value: snap?.downloadBail?.status || "—" },
+          { label: "Reason", value: snap?.downloadBail?.reason || "—" },
+          {
+            label: "Last bail",
+            value: formatStamp(snap?.downloadBail?.lastAt),
+          },
+        ],
+        controls: [
+          {
+            id: "bailOn",
+            type: "toggle",
+            label: "Download auto-bail",
+            help: "Automatically pause/resume to abandon stuck unpaid downloads.",
+            group: "bail",
+            groupLabel: "Download bail",
+            groupHelp: "Local ChopWatch setting — not a Salad preference.",
+            kind: "setting",
+            key: "downloadBailEnabled",
+            value: settings.downloadBailEnabled !== false,
+          },
+          ...chopControls,
+        ],
+      },
+      {
+        id: "wallet",
+        label: "Wallet / predicted",
+        value:
+          wallet?.current != null
+            ? `${formatMoney(wallet.current)} · ${
+                predictedDay != null ? `${formatMoney(predictedDay)}/d` : "—"
+              }`
+            : "—",
+        body: "Bowl Wallet lines plus optional official API. Toggle API and refresh from here.",
+        rows: [
+          { label: "Current", value: formatMoney(wallet?.current) },
+          {
+            label: "Predicted / day",
+            value: predictedDay != null ? formatMoney(predictedDay) : "—",
+          },
+          { label: "Wallet age", value: formatAge(wallet?.ageSec) },
+          { label: "API balance", value: formatMoney(apiBalance) },
+        ],
+        controls: [
+          {
+            id: "apiOn",
+            type: "toggle",
+            label: "Official Salad API",
+            help: "Pull balance from Salad’s official API (needs a connected account in Settings).",
+            group: "api",
+            groupLabel: "Salad API",
+            kind: "setting",
+            key: "saladApiEnabled",
+            value: settings.saladApiEnabled === true,
+          },
+          {
+            id: "refreshApi",
+            type: "button",
+            primary: true,
+            label: "Refresh API balance",
+            help: "Fetch the latest official balance now.",
+            group: "api",
+            groupLabel: "Salad API",
+            kind: "refreshApi",
+            disabled:
+              settings.saladApiEnabled !== true || !settings.authCookieConfigured,
+          },
+        ],
+      },
+      {
+        id: "gpuNow",
+        label: "GPU now",
+        value: gpu0?.utilGpuPct != null ? `${gpu0.utilGpuPct}%` : "—",
+        tone: "ok",
+        body: "Live GPU compute utilization. Workload preference levels below are written to Salad preferences.txt.",
+        rows: [
+          { label: "GPU", value: gpu0?.name },
+          {
+            label: "Util",
+            value: gpu0?.utilGpuPct != null ? `${gpu0.utilGpuPct}%` : "—",
+          },
+          { label: "Temperature", value: formatTempC(gpu0?.tempC) },
+          { label: "Power draw", value: formatWatts(gpu0?.powerW) },
+          {
+            label: "VRAM",
+            value:
+              memUsed != null && memTotal != null
+                ? formatMemPairFromMiB(memUsed, memTotal)
                 : "—",
           },
         ],
@@ -634,6 +849,7 @@ export default function OverviewTab({ snap, setSnap }) {
     memUsed,
     memTotal,
     wallet,
+    predictedDay,
     snap?.heartbeat,
     snap?.processes?.processes,
     snap?.downloadBail,
@@ -649,7 +865,35 @@ export default function OverviewTab({ snap, setSnap }) {
     settings.alertsEnabled,
     settings.windowsToastEnabled,
     settings.browserAlertsHint,
+    settings.downloadBailEnabled,
   ]);
+
+  // Hero strip: job lifecycle (rows 1–2) + hardware/earnings pulse (row 3).
+  const heroFacts = useMemo(() => {
+    const ids = [
+      ...(downloading ? ["downloadInfo"] : []),
+      "phase",
+      "state",
+      "instance",
+      "runningFor",
+      "sessionAge",
+      "logAge",
+      "session",
+      "peakPull",
+      "chop24",
+      "heartbeat",
+      "saladProcs",
+      "gpuTemp",
+      "gpuPower",
+      "vram",
+      "thisRun",
+      "chop7",
+      "starChef",
+      "autoBail",
+    ];
+    const byId = new Map(facts.map((f) => [f.id, f]));
+    return ids.map((id) => byId.get(id)).filter(Boolean);
+  }, [facts, downloading]);
 
   const procModal = useMemo(() => {
     if (!procKey) return null;
@@ -978,7 +1222,12 @@ export default function OverviewTab({ snap, setSnap }) {
         />
 
         <div className="hero-main">
-          <p className="phase-kicker">Current work</p>
+          <p className="phase-kicker">
+            Current work
+            {snap?.product?.version ? (
+              <span className="phase-version">v{snap.product.version}</span>
+            ) : null}
+          </p>
           <h2 className="phase-title">
             <span className={`dot ${phaseDot(work?.phase)}`} style={{ marginRight: 10 }} />
             {work?.title || "Waiting for snapshot…"}
@@ -1013,9 +1262,9 @@ export default function OverviewTab({ snap, setSnap }) {
                 </span>
               </div>
               <div className="hero-earn-primary">
-                {wallet?.predicted != null ? (
+                {predictedDay != null ? (
                   <>
-                    <span className="hero-earn-amount">{money(wallet.predicted)}</span>
+                    <span className="hero-earn-amount">{formatMoney(predictedDay)}</span>
                     <span className="hero-earn-unit">/day</span>
                   </>
                 ) : (
@@ -1024,20 +1273,20 @@ export default function OverviewTab({ snap, setSnap }) {
               </div>
               <div className="hero-earn-meta">
                 <span>
-                  {moneyPerHour(wallet?.predicted) != null
-                    ? `${money(moneyPerHour(wallet.predicted))}/hr`
+                  {predictedHour != null
+                    ? `${formatMoney(predictedHour)}/hr`
                     : "—/hr"}
                 </span>
                 <span className="hero-earn-sep" aria-hidden="true">
                   ·
                 </span>
-                <span>{money(wallet?.current)}</span>
+                <span>{formatMoney(wallet?.current)}</span>
                 {apiBalance != null ? (
                   <>
                     <span className="hero-earn-sep" aria-hidden="true">
                       ·
                     </span>
-                    <span>API {money(apiBalance)}</span>
+                    <span>API {formatMoney(apiBalance)}</span>
                   </>
                 ) : null}
               </div>
@@ -1045,8 +1294,11 @@ export default function OverviewTab({ snap, setSnap }) {
           </div>
         </div>
 
-        <div className="work-facts" aria-label="Work details">
-          {facts.map((f) => (
+        <div
+          className={`work-facts cols-${heroFacts.length}`}
+          aria-label="Work details"
+        >
+          {heroFacts.map((f) => (
             <Fact
               key={f.id}
               label={f.label}
@@ -1086,7 +1338,7 @@ export default function OverviewTab({ snap, setSnap }) {
             </InfoTip>
           </div>
           <div className="stat-value">
-            {wallet?.current != null ? money(wallet.current) : "—"}
+            {wallet?.current != null ? formatMoney(wallet.current) : "—"}
           </div>
           <div className="mono">{wallet ? formatAge(wallet.ageSec) : "no Wallet line"}</div>
         </div>
@@ -1097,7 +1349,7 @@ export default function OverviewTab({ snap, setSnap }) {
             </InfoTip>
           </div>
           <div className="stat-value">
-            {wallet?.predicted != null ? money(wallet.predicted) : "—"}
+            {predictedDay != null ? formatMoney(predictedDay) : "—"}
           </div>
           <div className="mono">Bowl Wallet log</div>
         </div>
@@ -1107,7 +1359,7 @@ export default function OverviewTab({ snap, setSnap }) {
               API balance
             </InfoTip>
           </div>
-          <div className="stat-value">{money(apiBalance)}</div>
+          <div className="stat-value">{formatMoney(apiBalance)}</div>
           <div className="mono">
             {snap?.saladAccount?.configured
               ? `HTTP ${snap.saladAccount.balanceStatus ?? "—"}`

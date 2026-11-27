@@ -49,6 +49,25 @@ describe("parseTsAgeSec", () => {
       "2026-11-26T17:59:00.000-07:00",
     );
   });
+
+  it("honors +00:00 offsets and ageSec across zones", () => {
+    const now = Date.parse("2026-11-26T18:00:00.000+00:00");
+    expect(toParsableTs("2026-11-26 17:59:00.000 +00:00")).toBe(
+      "2026-11-26T17:59:00.000+00:00",
+    );
+    expect(parseTsAgeSec("2026-11-26 17:59:00.000 +00:00", now)).toBe(60);
+    // Same instant as 10:59 local MST (-07:00) should also be 60s old.
+    expect(parseTsAgeSec("2026-11-26 10:59:00.000 -07:00", now)).toBe(60);
+  });
+
+  it("normalizes ISO Z and compact offsets", () => {
+    expect(toParsableTs("2026-11-26T17:59:00.000Z")).toBe(
+      "2026-11-26T17:59:00.000Z",
+    );
+    expect(toParsableTs("2026-11-26 17:59:00.000 +0000")).toBe(
+      "2026-11-26T17:59:00.000+00:00",
+    );
+  });
 });
 
 describe("readTail", () => {

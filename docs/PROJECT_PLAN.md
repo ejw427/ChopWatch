@@ -63,7 +63,7 @@ flowchart LR
 - Start with Windows (packaged app; tray login start via --hidden)
 - Public product page + Mermaid docs hub on welchsoftware.net
 - Release integrity: `SHA256SUMS.txt` on every Windows release; optional free SignPath path documented (no paid cert)
-- Bowl parser hardening pass: timezone stamps, negative Predicted wallet, InstallStarting / stop-reason / sparse pull fixtures
+- Bowl parser hardening pass: timezone stamps (+00:00/−07:00 ageSec), negative Predicted(-1)/(-1.00) + [INF]/precision wallet lines, InstallStarting / ProcessWLStatusEvent Starting / stop-reason / sparse pull, Running-without-Pulling + no invented Running, interleaved wallet/heartbeat newest-wins
 
 ---
 

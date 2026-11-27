@@ -5,6 +5,11 @@ import DetailsTab from "./tabs/DetailsTab.jsx";
 import SettingsTab from "./tabs/SettingsTab.jsx";
 import AboutTab from "./tabs/AboutTab.jsx";
 import InfoTip from "./InfoTip.jsx";
+import {
+  formatMoney,
+  moneyPerHourFromDaily,
+  predictedDailyRate,
+} from "./format.js";
 
 const TABS = [
   { id: "overview", label: "Overview" },
@@ -20,18 +25,40 @@ function formatAge(sec) {
   return `${(sec / 3600).toFixed(1)}h ago`;
 }
 
+function formatSessionEarned(earned) {
+  if (earned > 0) return `+${formatMoney(earned)}`;
+  return formatMoney(Math.max(0, earned));
+}
+
 export default function App() {
   const [snap, setSnap] = useState(null);
   const [error, setError] = useState(null);
   const [helperOk, setHelperOk] = useState(false);
   const [tab, setTab] = useState("overview");
   const seenAlertAt = useRef(null);
+  const predicted = predictedDailyRate(snap?.wallet?.predicted);
+  const phase = snap?.work?.phase;
+  const unpaid = phase === "downloading" || phase === "initializing";
+  const earning = predicted != null && phase === "running";
+  const perHour = moneyPerHourFromDaily(predicted);
+  const rawSession = snap?.wallet?.sessionEarned;
+  const sessionEarned =
+    phase === "running" &&
+    rawSession != null &&
+    Number.isFinite(Number(rawSession))
+      ? Number(rawSession)
+      : null;
 
   useEffect(() => {
     if (typeof Notification !== "undefined" && Notification.permission === "default") {
       Notification.requestPermission().catch(() => {});
     }
   }, []);
+
+  useEffect(() => {
+    const version = snap?.product?.version;
+    document.title = version ? `ChopWatch v${version}` : "ChopWatch";
+  }, [snap?.product?.version]);
 
   useEffect(() => {
     let cancelled = false;
@@ -93,6 +120,73 @@ export default function App() {
           </div>
         </div>
         <div className="meta">
+          <InfoTip
+            wide
+            text="Live earning only while Running. Downloading / Initializing are unpaid ($0) even if Salad still shows a Predicted rate. While Running, also shows Bowl Wallet balance gained on this job."
+          >
+            <span
+              className={`pill earn${earning ? " live" : ""}${unpaid ? " unpaid" : ""}`}
+            >
+              <span
+                className={`dot ${
+                  earning ? "ok" : unpaid ? "warn" : predicted != null ? "warn" : ""
+                }`}
+              />
+              {unpaid ? (
+                <>
+                  unpaid{" "}
+                  <span className="pill-earn-rate">$0</span>
+                  <span className="pill-earn-sep" aria-hidden="true">
+                    ·
+                  </span>
+                  <span>until Running</span>
+                  {predicted != null ? (
+                    <>
+                      <span className="pill-earn-sep" aria-hidden="true">
+                        ·
+                      </span>
+                      <span className="pill-earn-muted">
+                        pred {formatMoney(perHour)}/hr
+                      </span>
+                    </>
+                  ) : null}
+                </>
+              ) : predicted != null ? (
+                <>
+                  making{" "}
+                  <span className="pill-earn-rate">{formatMoney(perHour)}/hr</span>
+                  <span className="pill-earn-sep" aria-hidden="true">
+                    ·
+                  </span>
+                  <span>{formatMoney(predicted)}/day</span>
+                  {sessionEarned != null ? (
+                    <>
+                      <span className="pill-earn-sep" aria-hidden="true">
+                        ·
+                      </span>
+                      <span className="pill-earn-session">
+                        {formatSessionEarned(sessionEarned)} this run
+                      </span>
+                    </>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  making —
+                  {sessionEarned != null ? (
+                    <>
+                      <span className="pill-earn-sep" aria-hidden="true">
+                        ·
+                      </span>
+                      <span className="pill-earn-session">
+                        {formatSessionEarned(sessionEarned)} this run
+                      </span>
+                    </>
+                  ) : null}
+                </>
+              )}
+            </span>
+          </InfoTip>
           <InfoTip
             wide
             text="ChopWatch helper API on 127.0.0.1:3781. Live means the UI can reach the local Node helper that reads Bowl logs, GPU, and settings."

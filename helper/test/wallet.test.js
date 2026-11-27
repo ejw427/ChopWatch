@@ -30,6 +30,36 @@ describe("parseWalletAndHeartbeatText", () => {
     expect(wallet.ageSec).toBe(60);
   });
 
+  it("parses [INF] lines with Predicted(-1) and varying balance precision", () => {
+    const line =
+      "2026-11-26 12:00:00.1 +00:00 [INF] Wallet: Current(15.234567), Predicted(-1)";
+    const now = Date.parse("2026-11-26T12:00:30.000+00:00");
+    const { wallet } = parseWalletAndHeartbeatText(line, now);
+    expect(wallet.current).toBeCloseTo(15.234567, 6);
+    expect(wallet.predicted).toBe(-1);
+    expect(wallet.at).toBe("2026-11-26 12:00:00.1 +00:00");
+    expect(wallet.ageSec).toBeCloseTo(29.9, 1);
+  });
+
+  it("keeps newest wallet and heartbeat when interleaved out of order", () => {
+    const text = `
+2025-11-26 10:05:00.000 -07:00 [INF] Wallet: Current(12.34), Predicted(15.67)
+2025-11-26 10:05:30.000 -07:00 [INF] OrchestrationEvent: Heartbeat
+2025-11-26 10:04:00.000 -07:00 [INF] Wallet: Current(1.00), Predicted(2.00)
+2025-11-26 10:04:30.000 -07:00 [INF] OrchestrationEvent: Heartbeat
+2025-11-26 10:06:00.000 -07:00 [INF] Wallet: Current(20.5), Predicted(-1.00)
+2025-11-26 10:06:15.000 -07:00 [INF] OrchestrationEvent: Heartbeat
+`.trim();
+    const now = Date.parse("2025-11-26T10:07:00.000-07:00");
+    const { wallet, heartbeat } = parseWalletAndHeartbeatText(text, now);
+    expect(wallet.current).toBeCloseTo(20.5);
+    expect(wallet.predicted).toBeCloseTo(-1);
+    expect(wallet.at).toBe("2025-11-26 10:06:00.000 -07:00");
+    expect(wallet.ageSec).toBe(60);
+    expect(heartbeat.at).toBe("2025-11-26 10:06:15.000 -07:00");
+    expect(heartbeat.ageSec).toBe(45);
+  });
+
   it("returns nulls for empty text", () => {
     const { wallet, heartbeat } = parseWalletAndHeartbeatText("");
     expect(wallet).toBeNull();

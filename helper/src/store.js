@@ -61,6 +61,8 @@ const DEFAULT_STATE = {
   lastPhaseTitle: null,
   lastAlertAt: null,
   lastAlertKey: null,
+  lastAlertEvent: null,
+  startupAlertDone: false,
   gpuUtilSamples: [],
   gpuUtilSampleAt: null,
   downloadBailLastAt: null,
@@ -75,6 +77,9 @@ const DEFAULT_STATE = {
   downloadBailLastEtaSec: null,
   downloadBailRetriesByShortId: {},
   downloadBailBlackoutUntil: {},
+  sessionEarningsStartBalance: null,
+  sessionEarningsRunningSinceAt: null,
+  sessionEarningsShortId: null,
 };
 
 export function readSettings() {

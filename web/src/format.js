@@ -164,3 +164,27 @@ export function formatSpan(startedAt, endedAt) {
   if (!end) return null;
   return formatDuration((end.getTime() - start.getTime()) / 1000);
 }
+
+/** Format a dollar amount: "$12.34", or "—" when null/non-finite. */
+export function formatMoney(v) {
+  if (v == null || !Number.isFinite(Number(v))) return "—";
+  return `$${Number(v).toFixed(2)}`;
+}
+
+/**
+ * Salad Wallet uses negative Predicted for idle/unknown — treat as no rate.
+ * @returns {number|null}
+ */
+export function predictedDailyRate(predicted) {
+  if (predicted == null || !Number.isFinite(Number(predicted)) || Number(predicted) < 0) {
+    return null;
+  }
+  return Number(predicted);
+}
+
+/** Daily predicted earnings → $/hr, or null when idle/unknown. */
+export function moneyPerHourFromDaily(predictedPerDay) {
+  const daily = predictedDailyRate(predictedPerDay);
+  if (daily == null) return null;
+  return daily / 24;
+}

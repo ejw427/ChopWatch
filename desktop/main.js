@@ -25,6 +25,8 @@ let quitting = false;
 let actionBusy = false;
 let productVersion = "0.0.0";
 let startHidden = false;
+let lastTrayAlertAt = null;
+let alertPollTimer = null;
 
 function isPackagedApp() {
   return app.isPackaged;
@@ -277,6 +279,8 @@ function startHelper() {
     CHOPWATCH_PORT: String(HELPER_PORT),
     CHOPWATCH_DATA_DIR: dataDir(),
     CHOPWATCH_VERSION: productVersion,
+    // Helper skips PowerShell NotifyIcon; Electron tray owns AFK balloons.
+    CHOPWATCH_DESKTOP: "1",
   };
   const packagedUi = uiDir();
   if (packagedUi) {
@@ -355,16 +359,21 @@ function hideWindow() {
   if (mainWindow && mainWindow.isVisible()) mainWindow.hide();
 }
 
+function appTitle() {
+  const version = readProductVersion();
+  return version ? `ChopWatch v${version}` : "ChopWatch";
+}
+
 function createWindow() {
   if (mainWindow) return;
 
   mainWindow = new BrowserWindow({
     width: 1280,
-    height: 900,
+    height: 1020,
     minWidth: 720,
-    minHeight: 520,
+    minHeight: 640,
     show: false,
-    title: "ChopWatch",
+    title: appTitle(),
     backgroundColor: "#0f1419",
     autoHideMenuBar: true,
     icon: loadTrayIcon(),
@@ -374,6 +383,12 @@ function createWindow() {
       contextIsolation: true,
       sandbox: true,
     },
+  });
+
+  // Keep the OS title bar on the package version; the page also sets document.title.
+  mainWindow.on("page-title-updated", (event) => {
+    event.preventDefault();
+    if (!mainWindow.isDestroyed()) mainWindow.setTitle(appTitle());
   });
 
   mainWindow.once("ready-to-show", () => {
@@ -401,12 +416,65 @@ function createWindow() {
 function createTray() {
   const icon = loadTrayIcon();
   tray = new Tray(icon);
-  tray.setToolTip("ChopWatch");
+  tray.setToolTip(appTitle());
   refreshTrayMenu();
   tray.on("click", () => {
     if (!mainWindow || !mainWindow.isVisible()) showWindow();
     else hideWindow();
   });
+}
+
+function showTrayBalloon(title, body) {
+  if (!tray) return;
+  try {
+    tray.displayBalloon({
+      title: String(title || "ChopWatch").slice(0, 63),
+      content: String(body || "").slice(0, 255),
+      iconType: "info",
+    });
+  } catch (err) {
+    console.error("tray balloon failed:", err instanceof Error ? err.message : err);
+  }
+}
+
+function pollPhaseAlerts() {
+  const url = `http://${HELPER_HOST}:${HELPER_PORT}/api/snapshot`;
+  const req = http.get(url, (res) => {
+    let raw = "";
+    res.on("data", (chunk) => {
+      raw += chunk;
+    });
+    res.on("end", () => {
+      if (!res.statusCode || res.statusCode >= 300) return;
+      try {
+        const data = JSON.parse(raw);
+        const alert = data?.alert;
+        if (!alert?.at || alert.at === lastTrayAlertAt) return;
+        if (data?.settings?.windowsToastEnabled === false) {
+          lastTrayAlertAt = alert.at;
+          return;
+        }
+        if (data?.settings?.alertsEnabled === false) {
+          lastTrayAlertAt = alert.at;
+          return;
+        }
+        lastTrayAlertAt = alert.at;
+        showTrayBalloon(alert.title, alert.body);
+        const phase = data?.work?.phase || alert.to || "";
+        if (phase) tray?.setToolTip(`${appTitle()} · ${phase}`);
+      } catch {
+        // ignore parse errors
+      }
+    });
+  });
+  req.on("error", () => {});
+  req.setTimeout(2500, () => req.destroy());
+}
+
+function startAlertPoll() {
+  if (alertPollTimer) return;
+  pollPhaseAlerts();
+  alertPollTimer = setInterval(pollPhaseAlerts, 5000);
 }
 
 function registerIpc() {
@@ -505,10 +573,15 @@ if (!gotLock) {
       console.error(err instanceof Error ? err.message : err);
     }
     createWindow();
+    startAlertPoll();
   });
 
   app.on("before-quit", () => {
     quitting = true;
+    if (alertPollTimer) {
+      clearInterval(alertPollTimer);
+      alertPollTimer = null;
+    }
     stopHelper();
   });
 
