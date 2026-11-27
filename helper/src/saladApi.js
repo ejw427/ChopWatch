@@ -13,9 +13,13 @@ const CACHE_MS = 60_000;
 async function saladFetch(path, cookie) {
   const res = await fetch(`${BASE}${path}`, {
     headers: {
+      // Salad accepts the auth cookie value as the antiforgery header too.
       Cookie: `auth=${cookie}`,
+      "X-XSRF-TOKEN": cookie,
       Accept: "application/json",
-      "User-Agent": "ChopWatch/0.3 (local read-only)",
+      Origin: "https://app.salad.com",
+      Referer: "https://app.salad.com/",
+      "User-Agent": "ChopWatch/0.5 (local read-only)",
     },
   });
   const text = await res.text();
@@ -29,7 +33,7 @@ async function saladFetch(path, cookie) {
 }
 
 /**
- * Opt-in Salad web API. Requires auth cookie stored locally by the user.
+ * Opt-in Salad web API. Requires auth cookie stored locally.
  * Never logs the cookie value.
  */
 export async function fetchSaladAccount(force = false) {
@@ -40,7 +44,7 @@ export async function fetchSaladAccount(force = false) {
     return {
       enabled: false,
       configured,
-      note: "Enable Salad API in ChopWatch settings and paste your auth cookie to pull official balance/history.",
+      note: "Connect your Salad account in Settings to pull official balance/history.",
     };
   }
 
@@ -48,7 +52,7 @@ export async function fetchSaladAccount(force = false) {
     return {
       enabled: true,
       configured: false,
-      note: "Salad API enabled but no auth cookie saved yet.",
+      note: "Salad API enabled but not connected yet — use Settings → Connect Salad account.",
     };
   }
 
@@ -58,9 +62,9 @@ export async function fetchSaladAccount(force = false) {
 
   const cookie = getAuthCookie();
   try {
-    const [balance, rate, history] = await Promise.all([
+    const [balance, machines, history] = await Promise.all([
       saladFetch("/api/v1/profile/balance", cookie),
-      saladFetch("/api/v2/bonuses/earning-rate", cookie),
+      saladFetch("/api/v2/machines", cookie),
       saladFetch("/api/v2/reports/30-day-earning-history", cookie),
     ]);
 
@@ -70,15 +74,17 @@ export async function fetchSaladAccount(force = false) {
       fetchedAt: new Date().toISOString(),
       balance: balance.ok ? balance.body : null,
       balanceStatus: balance.status,
-      earningRate: rate.ok ? rate.body : null,
-      earningRateStatus: rate.status,
+      machines: machines.ok ? machines.body : null,
+      machinesStatus: machines.status,
       history30d: history.ok ? history.body : null,
       history30dStatus: history.status,
       ok: balance.ok || history.ok,
       note:
-        balance.status === 401 || history.status === 401
-          ? "Auth rejected — paste a fresh auth cookie from salad.com (Application → Cookies → auth)."
-          : "Official Salad API (opt-in). Cookie stays on this PC in helper/data/secrets.json.",
+        balance.status === 401 ||
+        history.status === 401 ||
+        balance.status === 403
+          ? "Auth/XSRF rejected — reconnect Salad account in Settings."
+          : "Official Salad API connected.",
     };
 
     cache = result;

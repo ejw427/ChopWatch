@@ -1,6 +1,6 @@
 {
   "name": "chopwatch",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "description": "Read-only local Salad chopping dashboard",
   "author": "Eric Welch",
@@ -9,11 +9,13 @@
     "url": "https://github.com/ejw427/ChopWatch.git"
   },
   "scripts": {
-    "install:all": "npm install --prefix helper && npm install --prefix web",
+    "install:all": "npm install --prefix helper && npm install --prefix web && npm install --prefix desktop",
     "postinstall": "npm run install:all",
     "helper": "npm start --prefix helper",
     "web": "npm run dev --prefix web",
+    "desktop": "npm start --prefix desktop",
     "start": "concurrently -k -n helper,web -c green,cyan \"npm run helper\" \"npm run web\"",
+    "app": "concurrently -k -n web,desktop -c cyan,magenta \"npm run web\" \"npm run desktop\"",
     "snapshot": "node helper/src/cli-snapshot.js",
     "test": "npm test --prefix helper",
     "test:watch": "npm run test:watch --prefix helper",

@@ -4,6 +4,7 @@ import OverviewTab from "./tabs/OverviewTab.jsx";
 import DetailsTab from "./tabs/DetailsTab.jsx";
 import SettingsTab from "./tabs/SettingsTab.jsx";
 import AboutTab from "./tabs/AboutTab.jsx";
+import InfoTip from "./InfoTip.jsx";
 
 const TABS = [
   { id: "overview", label: "Overview" },
@@ -92,25 +93,44 @@ export default function App() {
           </div>
         </div>
         <div className="meta">
-          <span className="pill">
-            <span className={`dot ${helperOk ? "ok" : "bad"}`} />
-            helper {helperOk ? "live" : "offline"}
-          </span>
-          <span className="pill">
-            <span className={`dot ${snap?.processes?.running ? "ok" : "bad"}`} />
-            salad {snap?.processes?.running ? "up" : "down"}
-          </span>
-          <span className="pill">
-            <span
-              className={`dot ${
-                snap?.heartbeat?.ageSec != null && snap.heartbeat.ageSec < 120
-                  ? "ok"
-                  : "warn"
-              }`}
-            />
-            hb {formatAge(snap?.heartbeat?.ageSec)}
-          </span>
-          <span>{snap?.generatedAt ? new Date(snap.generatedAt).toLocaleTimeString() : "…"}</span>
+          <InfoTip
+            wide
+            text="ChopWatch helper API on 127.0.0.1:3781. Live means the UI can reach the local Node helper that reads Bowl logs, GPU, and settings."
+          >
+            <span className="pill">
+              <span className={`dot ${helperOk ? "ok" : "bad"}`} />
+              helper {helperOk ? "live" : "offline"}
+            </span>
+          </InfoTip>
+          <InfoTip
+            wide
+            text="Salad / Bowl processes detected on this PC. Up means ChopWatch sees Salad running locally — not a cloud account status."
+          >
+            <span className="pill">
+              <span className={`dot ${snap?.processes?.running ? "ok" : "bad"}`} />
+              salad {snap?.processes?.running ? "up" : "down"}
+            </span>
+          </InfoTip>
+          <InfoTip
+            wide
+            text="Age of the newest Bowl heartbeat log line. Under ~2 minutes usually means Bowl is actively connected."
+          >
+            <span className="pill">
+              <span
+                className={`dot ${
+                  snap?.heartbeat?.ageSec != null && snap.heartbeat.ageSec < 120
+                    ? "ok"
+                    : "warn"
+                }`}
+              />
+              hb {formatAge(snap?.heartbeat?.ageSec)}
+            </span>
+          </InfoTip>
+          <InfoTip text="Local clock time of the last successful snapshot refresh.">
+            <span className="pill quiet">
+              {snap?.generatedAt ? new Date(snap.generatedAt).toLocaleTimeString() : "…"}
+            </span>
+          </InfoTip>
         </div>
       </header>
 
@@ -134,7 +154,7 @@ export default function App() {
         </div>
       )}
 
-      {tab === "overview" && <OverviewTab snap={snap} />}
+      {tab === "overview" && <OverviewTab snap={snap} setSnap={setSnap} />}
       {tab === "details" && <DetailsTab snap={snap} />}
       {tab === "settings" && <SettingsTab snap={snap} setSnap={setSnap} />}
       {tab === "about" && <AboutTab snap={snap} />}

@@ -84,3 +84,91 @@ export function readPreferences() {
     choppingPaused: appFlags.SALAD_CHOPPING_INDEFINITELY_PAUSED === true,
   };
 }
+
+function readRawJson(filePath) {
+  if (!exists(filePath)) return {};
+  try {
+    const text = fs.readFileSync(filePath, "utf8").trim();
+    if (!text) return {};
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeRawJson(filePath, obj) {
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(filePath, `${JSON.stringify(obj, null, 2)}\n`, "utf8");
+}
+
+/** Boolean Salad app flags only (allowlisted). */
+export function writeAppFlags(patch = {}) {
+  const file = appConfigPath();
+  const current = readRawJson(file);
+  const applied = {};
+  for (const [key, value] of Object.entries(patch)) {
+    if (!ALLOWED_APP_FLAGS.has(key)) continue;
+    if (typeof value !== "boolean" && typeof value !== "string") continue;
+    if (typeof value === "string" && !ALLOWED_APP_FLAGS.has(key)) continue;
+    // Keep string release channel; booleans for the rest.
+    if (key === "SALAD_RELEASE_CHANNEL") {
+      if (typeof value !== "string") continue;
+      current[key] = value;
+      applied[key] = value;
+      continue;
+    }
+    if (typeof value !== "boolean") continue;
+    current[key] = value;
+    applied[key] = value;
+  }
+  if (Object.keys(applied).length === 0) {
+    return { ok: false, error: "no_allowed_flags", ...readPreferences() };
+  }
+  writeRawJson(file, current);
+  return { ok: true, applied, ...readPreferences() };
+}
+
+const GPU_CPU_LEVELS = new Set(["Low", "Medium", "High", "Off"]);
+
+/** Allowlisted Salad preferences.txt keys. */
+export function writePreferences(patch = {}) {
+  const file = paths.preferences;
+  const current = readRawJson(file);
+  const applied = {};
+  for (const [key, value] of Object.entries(patch)) {
+    if (!ALLOWED_PREF_KEYS.has(key)) continue;
+    if (key === "active/gpu" || key === "idle/gpu" || key === "active/cpu" || key === "idle/cpu") {
+      if (!GPU_CPU_LEVELS.has(String(value))) continue;
+      current[key] = String(value);
+      applied[key] = String(value);
+      continue;
+    }
+    if (key === "sys/max_storage_gb") {
+      const n = Number(value);
+      if (!Number.isFinite(n) || n < 10 || n > 4000) continue;
+      current[key] = String(Math.round(n));
+      applied[key] = current[key];
+      continue;
+    }
+    // boolean-ish prefs are stored as "True"/"False" strings in Salad's file
+    if (typeof value === "boolean") {
+      current[key] = value ? "True" : "False";
+      applied[key] = current[key];
+      continue;
+    }
+    if (value === "True" || value === "False" || value === "true" || value === "false") {
+      const on = String(value).toLowerCase() === "true";
+      current[key] = on ? "True" : "False";
+      applied[key] = current[key];
+    }
+  }
+  if (Object.keys(applied).length === 0) {
+    return { ok: false, error: "no_allowed_preferences", ...readPreferences() };
+  }
+  writeRawJson(file, current);
+  return { ok: true, applied, ...readPreferences() };
+}
+
+export { ALLOWED_APP_FLAGS, ALLOWED_PREF_KEYS, GPU_CPU_LEVELS };

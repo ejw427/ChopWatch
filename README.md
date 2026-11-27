@@ -1,8 +1,8 @@
 # ChopWatch
 
-Local, **read-only** dashboard for Salad chopping on this PC.
+Local dashboard for Salad chopping on this PC.
 
-Shows what Salad is *doing* (lifecycle), GPU/host load, Bowl wallet lines, chopping-hour estimates, phase alerts, and — if you opt in — official Salad API balance/history. **Not** customer workload identity or container contents.
+Shows what Salad is *doing* (lifecycle), GPU/host load, Bowl wallet lines, chopping-hour estimates, phase alerts, and — if you opt in — official Salad API balance/history. Overview popups can pause/resume chopping and edit allowlisted Salad preferences. **Not** customer workload identity or container contents.
 
 **Repo:** https://github.com/ejw427/ChopWatch  
 Day-to-day branch: `dev` · stable line: `main`
@@ -14,6 +14,9 @@ ChopWatch never:
 - Reads `token.txt` or other Salad ProgramData credentials by default
 - Opens WSL shells or customer container filesystems
 - Inspects encrypted workload images or job payloads
+- Fakes Bowl job phases (Running/Pulling still come from Salad logs)
+
+Allowlisted writes (from Overview popups): Salad `SALAD_CHOPPING_INDEFINITELY_PAUSED` / related app flags, and workload preference levels in `preferences.txt`.
 
 Your optional Salad `auth` cookie is stored only in `helper/data/secrets.json` (gitignored). Treat it like a password.
 
@@ -21,6 +24,19 @@ Your optional Salad `auth` cookie is stored only in `helper/data/secrets.json` (
 
 ```bash
 npm install
+```
+
+**Desktop app** (window + system tray; helper runs in the background):
+
+```bash
+npm run app
+```
+
+Close the window to hide to the tray. Quit from the tray menu.
+
+**Browser dashboard** (unchanged):
+
+```bash
 npm start
 ```
 

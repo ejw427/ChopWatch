@@ -96,11 +96,29 @@ export function inferFinding(processesRunning, lastEvent, ageSec, paused) {
     };
   }
   // Running often logs once via GetMetrics then stays quiet — keep it sticky.
+  // Pulling/Starting/InstallStarting can also go quiet, but not forever:
+  // after a long silence they are usually stale (missed Running behind log spam).
+  if (ageSec > 300 && lastEvent.state === "Running") {
+    return null;
+  }
+  if (
+    ageSec > 600 &&
+    (lastEvent.state === "Pulling" ||
+      lastEvent.state === "Starting" ||
+      lastEvent.state === "InstallStarting")
+  ) {
+    return {
+      phase: "finding",
+      title: "Finding Job",
+      detail: "Last download/start update went quiet; waiting for a fresh state.",
+    };
+  }
   if (
     ageSec > 300 &&
     lastEvent.state !== "Running" &&
     lastEvent.state !== "Pulling" &&
-    lastEvent.state !== "Starting"
+    lastEvent.state !== "Starting" &&
+    lastEvent.state !== "InstallStarting"
   ) {
     return {
       phase: "finding",
@@ -120,6 +138,7 @@ export function buildSessions(events) {
       cur = {
         shortId: e.shortId,
         startedAt: e.at,
+        runningAt: e.state === "Running" ? e.at : null,
         endedAt: null,
         lastState: e.state,
         lastTitle: e.title,
@@ -137,7 +156,10 @@ export function buildSessions(events) {
           ? e.progress
           : Math.max(cur.peakProgress, e.progress);
     }
-    if (e.state === "Running") cur.sawRunning = true;
+    if (e.state === "Running") {
+      cur.sawRunning = true;
+      if (!cur.runningAt) cur.runningAt = e.at;
+    }
     if (e.state === "Pulling") cur.sawPulling = true;
     if (e.state === "Stopped" || e.state === "Stopping") cur.endedAt = e.at;
   }
@@ -145,12 +167,36 @@ export function buildSessions(events) {
   return sessions.slice(-8).reverse();
 }
 
+function enrichCurrent(base, sessions) {
+  const session =
+    (base.shortId && sessions.find((s) => s.shortId === base.shortId)) ||
+    sessions[0] ||
+    null;
+  const sessionAgeSec = session?.startedAt
+    ? parseTsAgeSec(session.startedAt)
+    : null;
+  const runningForSec = session?.runningAt
+    ? parseTsAgeSec(session.runningAt)
+    : null;
+  return {
+    ...base,
+    sessionStartedAt: session?.startedAt ?? null,
+    sessionAgeSec,
+    runningSinceAt: session?.runningAt ?? null,
+    runningForSec,
+  };
+}
+
 export function readWorkloadStatus(processesRunning, paused = false) {
-  // Larger tail so a single Running GetMetrics isn't missed behind Pulling spam.
-  const { files, text } = readRecentBowlText(2, 1_500_000);
+  // Newest log can be huge with HTTP noise; prefer reading it nearly whole so a
+  // single Running GetMetrics isn't missed behind Pulling / probe spam.
+  const { files, text } = readRecentBowlText(3, 2_000_000, {
+    fullFileMaxBytes: 16_000_000,
+  });
   const events = parseStates(text).sort((a, b) =>
     a.at < b.at ? -1 : a.at > b.at ? 1 : 0,
   );
+  const sessions = buildSessions(events);
 
   const last = events.length ? events[events.length - 1] : null;
   const ageSec = last ? parseTsAgeSec(last.at) : null;
@@ -161,27 +207,30 @@ export function readWorkloadStatus(processesRunning, paused = false) {
     paused,
   );
 
-  const current = finding
-    ? {
-        ...finding,
-        progress: null,
-        elapsed: null,
-        shortId: last?.shortId ?? null,
-        state: last?.state ?? null,
-        at: last?.at ?? null,
-        ageSec,
-      }
-    : {
-        phase: last.phase,
-        title: last.title,
-        detail: `State ${last.state} for instance ${last.shortId}`,
-        progress: Number.isFinite(last.progress) ? last.progress : null,
-        elapsed: last.elapsed,
-        shortId: last.shortId,
-        state: last.state,
-        at: last.at,
-        ageSec,
-      };
+  const current = enrichCurrent(
+    finding
+      ? {
+          ...finding,
+          progress: null,
+          elapsed: null,
+          shortId: last?.shortId ?? null,
+          state: last?.state ?? null,
+          at: last?.at ?? null,
+          ageSec,
+        }
+      : {
+          phase: last.phase,
+          title: last.title,
+          detail: `State ${last.state} for instance ${last.shortId}`,
+          progress: Number.isFinite(last.progress) ? last.progress : null,
+          elapsed: last.elapsed,
+          shortId: last.shortId,
+          state: last.state,
+          at: last.at,
+          ageSec,
+        },
+    sessions,
+  );
 
   return {
     current,
@@ -196,7 +245,7 @@ export function readWorkloadStatus(processesRunning, paused = false) {
         shortId: e.shortId,
         elapsed: e.elapsed,
       })),
-    sessions: buildSessions(events),
+    sessions,
     logFiles: files.map((f) => ({
       name: f.name,
       sizeBytes: f.size,

@@ -71,6 +71,26 @@ describe("inferFinding", () => {
     );
     expect(r).toBeNull();
   });
+
+  it("keeps running sticky after a long quiet period", () => {
+    const r = inferFinding(
+      true,
+      { state: "Running", shortId: "abc" },
+      1800,
+      false,
+    );
+    expect(r).toBeNull();
+  });
+
+  it("ages out stale pulling so a missed Running is not stuck forever", () => {
+    const r = inferFinding(
+      true,
+      { state: "Pulling", shortId: "abc" },
+      700,
+      false,
+    );
+    expect(r.phase).toBe("finding");
+  });
 });
 
 describe("buildSessions", () => {
@@ -84,5 +104,7 @@ describe("buildSessions", () => {
     expect(sessions[1].sawPulling).toBe(true);
     expect(sessions[1].endedAt).toBeTruthy();
     expect(sessions[1].peakProgress).toBeCloseTo(0.35);
+    expect(sessions[1].runningAt).toBeTruthy();
+    expect(sessions[1].startedAt).toBeTruthy();
   });
 });

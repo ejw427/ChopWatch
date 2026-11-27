@@ -43,6 +43,8 @@ const DEFAULT_STATE = {
   lastPhaseTitle: null,
   lastAlertAt: null,
   lastAlertKey: null,
+  gpuUtilSamples: [],
+  gpuUtilSampleAt: null,
 };
 
 export function readSettings() {

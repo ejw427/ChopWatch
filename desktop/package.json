@@ -1,0 +1,16 @@
+{
+  "name": "chopwatch-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Electron shell for ChopWatch",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^37.2.0"
+  },
+  "allowScripts": {
+    "electron@37.10.3": true
+  }
+}

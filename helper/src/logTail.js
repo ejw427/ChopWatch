@@ -31,12 +31,32 @@ export function readTail(filePath, maxBytes = 750_000) {
   }
 }
 
-export function readRecentBowlText(fileCount = 2, maxBytes = 750_000) {
+/**
+ * Read recent Bowl log text. Newest file is preferred in full when under
+ * `fullFileMaxBytes` because busy logs bury WLInstanceState under HTTP spam
+ * that can exceed a small tail window.
+ */
+export function readRecentBowlText(
+  fileCount = 2,
+  maxBytes = 750_000,
+  { fullFileMaxBytes = 12_000_000 } = {},
+) {
   const files = listBowlLogFiles().slice(0, fileCount);
-  const chunks = files.map((f) => ({
-    file: f,
-    text: readTail(f.full, maxBytes),
-  }));
+  const chunks = files.map((f, i) => {
+    const budget =
+      i === 0 ? Math.max(maxBytes, fullFileMaxBytes) : maxBytes;
+    let text = "";
+    try {
+      if (f.size <= budget) {
+        text = fs.readFileSync(f.full, "utf8");
+      } else {
+        text = readTail(f.full, budget);
+      }
+    } catch {
+      text = "";
+    }
+    return { file: f, text };
+  });
   return { files, chunks, text: chunks.map((c) => c.text).join("\n") };
 }
 

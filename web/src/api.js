@@ -63,3 +63,25 @@ export async function cancelSaladConnect() {
     await fetch(`${HELPER}/api/settings/auth/connect`, { method: "DELETE" }),
   );
 }
+
+export async function setSaladFlags(body) {
+  const res = await fetch(`${HELPER}/api/salad/flags`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Helper ${res.status}`);
+  return data;
+}
+
+export async function setSaladPreferences(body) {
+  const res = await fetch(`${HELPER}/api/salad/preferences`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Helper ${res.status}`);
+  return data;
+}

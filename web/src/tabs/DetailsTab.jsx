@@ -25,6 +25,13 @@ function historyPoints(history) {
   if (Array.isArray(history)) return history;
   if (Array.isArray(history.data)) return history.data;
   if (Array.isArray(history.earnings)) return history.earnings;
+  // Salad returns { "2026-11-25T12:00:00Z": 0.0123, ... }
+  if (typeof history === "object") {
+    return Object.entries(history)
+      .map(([timestamp, amount]) => ({ timestamp, amount: Number(amount) }))
+      .filter((row) => Number.isFinite(row.amount))
+      .sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)));
+  }
   return [];
 }
 
@@ -38,13 +45,13 @@ export default function DetailsTab({ snap }) {
         <h2>Official Salad API</h2>
         <p className="hint">
           {account?.note ||
-            "Enable and paste your auth cookie in Settings to load official balance and history."}
+            "Connect your Salad account in Settings to load official balance and history."}
         </p>
         {account?.ok ? (
           <div className="api-box">
             <div className="meta">
               <span>balance HTTP {account.balanceStatus ?? "—"}</span>
-              <span>rate HTTP {account.earningRateStatus ?? "—"}</span>
+              <span>machines HTTP {account.machinesStatus ?? "—"}</span>
               <span>history HTTP {account.history30dStatus ?? "—"}</span>
               <span>
                 {account.fetchedAt
@@ -52,10 +59,17 @@ export default function DetailsTab({ snap }) {
                   : ""}
               </span>
             </div>
-            {account.earningRate && (
-              <pre className="code-block">
-                {JSON.stringify(account.earningRate, null, 2)}
-              </pre>
+            {account.machines?.items?.length > 0 && (
+              <ul className="timeline compact">
+                {account.machines.items.map((m) => (
+                  <li key={m.machine_id}>
+                    <span>{String(m.machine_id).slice(0, 8)}…</span>
+                    <span className="mono">
+                      lifetime {money(Number(m.lifetime_balance))}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             )}
             {hist.length > 0 && (
               <ul className="timeline compact">

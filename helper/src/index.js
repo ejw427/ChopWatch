@@ -5,7 +5,11 @@ import { readChopHours } from "./chopHours.js";
 import { fetchSaladAccount, invalidateSaladApiCache } from "./saladApi.js";
 import { evaluatePhaseAlert } from "./alerts.js";
 import { listSaladProcesses } from "./processes.js";
-import { readPreferences } from "./preferences.js";
+import {
+  readPreferences,
+  writeAppFlags,
+  writePreferences,
+} from "./preferences.js";
 import { readWorkloadStatus } from "./bowlLog.js";
 import { importSaladAuth, autoFillAuthOnStartup } from "./authImport.js";
 import {
@@ -155,6 +159,34 @@ app.get("/api/salad-account", async (req, res) => {
   }
 });
 
+app.get("/api/salad/controls", (_req, res) => {
+  res.json(readPreferences());
+});
+
+app.post("/api/salad/flags", (req, res) => {
+  try {
+    const result = writeAppFlags(req.body || {});
+    res.status(result.ok ? 200 : 400).json(result);
+  } catch (err) {
+    res.status(500).json({
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+app.post("/api/salad/preferences", (req, res) => {
+  try {
+    const result = writePreferences(req.body || {});
+    res.status(result.ok ? 200 : 400).json(result);
+  } catch (err) {
+    res.status(500).json({
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
 app.get("/", (_req, res) => {
   res.json({
     name: "ChopWatch helper",
@@ -166,6 +198,9 @@ app.get("/", (_req, res) => {
       "/api/settings/auth/connect",
       "/api/settings/auth/autofill",
       "/api/salad-account",
+      "/api/salad/controls",
+      "/api/salad/flags",
+      "/api/salad/preferences",
     ],
   });
 });
