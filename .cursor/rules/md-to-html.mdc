@@ -1,0 +1,22 @@
+---
+description: After editing any .md file, regenerate its sibling .html via scripts/md-to-html.mjs
+globs: "**/*.md"
+alwaysApply: true
+---
+
+# Markdown → HTML
+
+Whenever you create or update a project `.md` file (for example `README.md`, `docs/ARCHITECTURE.md`, or any new doc), immediately regenerate the sibling HTML **and open it in the system browser** (Cursor’s editor only shows HTML source — that is not the webpage view):
+
+```powershell
+node scripts/md-to-html.mjs --open --file <path-to.md>
+```
+
+Or convert and open every project markdown file:
+
+```powershell
+npm run docs:view
+```
+
+- Output path: same directory, same basename, `.html` extension (`README.md` → `README.html`).
+- Do not hand-edit the generated `.html` files; change the `.md` source and regenerate.

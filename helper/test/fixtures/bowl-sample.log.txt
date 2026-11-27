@@ -1,0 +1,8 @@
+2025-11-26 10:00:00.000 [INF] SendStateChange(SourceId { Id = aaa-bbb-ccc, Name = Pulling - WLInstanceStatePulling(abc123 - 00:00:01), Progress(0.35) })
+2025-11-26 10:01:00.000 [INF] SendStateChange(SourceId { Id = aaa-bbb-ccc, Name = Starting - WLInstanceStateStarting[abc123][ProcessWLStatusEvent] - 00:01:00] })
+2025-11-26 10:02:00.000 [INF] GetMetrics(SourceId { Id = aaa-bbb-ccc, Name = Running - WLInstanceStateRunning[abc123] - 00:02:00] })
+2025-11-26 10:05:00.000 [INF] Wallet: Current(12.34), Predicted(15.67)
+2025-11-26 10:05:30.000 [INF] OrchestrationEvent: Heartbeat
+2025-11-26 10:10:00.000 [INF] SendStateChange(SourceId { Id = aaa-bbb-ccc, Name = Stopping - WLInstanceStateStopping[abc123] - 00:10:00] })
+2025-11-26 10:10:05.000 [INF] SendStateChange(SourceId { Id = aaa-bbb-ccc, Name = Stopped - WLInstanceStateStopped(abc123 - 00:10:05) })
+2025-11-26 11:00:00.000 [INF] SendStateChange(SourceId { Id = ddd-eee-fff, Name = Pulling - WLInstanceStatePulling(def456 - 00:00:00), Progress(0.10) })

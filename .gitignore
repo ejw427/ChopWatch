@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+.env
+.env.*
+.vscode/
+.idea/
+.netlify/
+coverage/
+web/dist/
+helper/data/
+helper/data/salad-browser-profile/
+*.tmp
+*.temp
