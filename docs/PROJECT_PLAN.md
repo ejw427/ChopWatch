@@ -37,15 +37,15 @@ mindmap
 
 ```mermaid
 flowchart LR
-  Done[Done<br/>helper · UI · Electron<br/>CI · Releases] --> Near[Near term<br/>parser harden<br/>autostart · signing]
+  Done[Done<br/>helper · UI · Electron<br/>CI · Releases · autostart] --> Near[Near term<br/>parser harden<br/>signing]
   Near --> Later[Later<br/>Store / winget<br/>richer Star Chef]
 ```
 
 | Horizon | Themes |
 | --- | --- |
-| **Done** | Local helper + React tabs, Bowl pipeline, opt-in Salad API, Electron tray, Vitest/CI, Windows NSIS + portable on GitHub Releases |
-| **Near term** | Parser hardening, Start with Windows, code-signing, richer Star Chef signals if Salad exposes them |
-| **Later** | winget / Microsoft Store, promote-`dev`-to-`main` script, keep marketing page on welchsoftware.net current |
+| **Done** | Local helper + React tabs, Bowl pipeline, opt-in Salad API, Electron tray, Start with Windows, Vitest/CI, Windows NSIS + portable on GitHub Releases |
+| **Near term** | Parser hardening, code-signing, richer Star Chef signals if Salad exposes them |
+| **Later** | winget / Microsoft Store, promote-`dev`-to-`main` script; keep welchsoftware.net ChopWatch page + `/chopwatch/` docs current |
 
 ---
 
@@ -58,6 +58,8 @@ flowchart LR
 - GitHub repo hygiene: version bump hooks, docs + HTML sisters, Vitest, CI
 - Windows packaging (`npm run dist`) + GitHub Releases workflow
 - Electron tray shell (hide-on-close; Quit stops helper)
+- Start with Windows (packaged app; tray login start via --hidden)
+- Public product page + Mermaid docs hub on welchsoftware.net
 
 ---
 
@@ -66,7 +68,6 @@ flowchart LR
 | Item | Why |
 | --- | --- |
 | Harden Bowl parsers | Salad log formats change; keep phases honest |
-| Start-with-Windows shortcut | Desk chopping should come back after reboot |
 | Code-sign installers | Calm SmartScreen / Chrome warnings |
 | Richer Star Chef / reward progress | Only if Salad exposes clearer local or API signals |
 
@@ -77,7 +78,6 @@ gantt
   section Stability
   Bowl parser hardening           :a1, 2026-11, 2M
   section Desktop polish
-  Start with Windows              :a2, 2026-12, 1M
   Code-sign installers            :a3, 2027-01, 2M
   section Product depth
   Star Chef signals if available  :a4, 2027-01, 2M

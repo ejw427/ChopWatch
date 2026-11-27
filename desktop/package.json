@@ -1,6 +1,6 @@
 {
   "name": "chopwatch-desktop",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "private": true,
   "description": "Electron shell for ChopWatch",
   "author": "Eric Welch",

@@ -40,3 +40,94 @@ export function formatProcMemory(mb) {
   if (n < 1024) return `${Math.round(n)} MB`;
   return formatGiBFromMb(n);
 }
+
+/** Parse Bowl / ISO timestamps into a Date, or null. */
+export function parseStamp(ts) {
+  if (!ts) return null;
+  const d = new Date(String(ts).replace(" ", "T"));
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** Human clock time: "Nov 26, 10:02:00 AM". */
+export function formatStamp(ts) {
+  const d = parseStamp(ts);
+  if (!d) return ts ? String(ts) : "—";
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+/** Day label for earnings history: "Wed, Nov 25" (or with local time if not a day key). */
+export function formatDayStamp(ts) {
+  const d = parseStamp(ts);
+  if (!d) return ts ? String(ts).slice(0, 40) : "—";
+  const raw = String(ts).trim();
+  // Salad day keys are often UTC midnight / bare dates — keep the calendar day.
+  const dayKey =
+    /^\d{4}-\d{2}-\d{2}$/.test(raw) ||
+    /T00:00:00(\.\d+)?Z$/i.test(raw);
+  if (dayKey) {
+    return d.toLocaleDateString(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      timeZone: "UTC",
+    });
+  }
+  const hasTime =
+    d.getHours() !== 0 || d.getMinutes() !== 0 || d.getSeconds() !== 0;
+  if (!hasTime) {
+    return d.toLocaleDateString(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
+  }
+  return d.toLocaleString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+/** Duration from seconds: "10m 5s", "2h 3m". */
+export function formatDuration(sec) {
+  if (sec == null || !Number.isFinite(sec) || sec < 0) return "—";
+  if (sec < 60) return `${Math.round(sec)}s`;
+  if (sec < 3600) {
+    const m = Math.floor(sec / 60);
+    const s = Math.round(sec % 60);
+    return `${m}m ${s}s`;
+  }
+  const h = Math.floor(sec / 3600);
+  const m = Math.round((sec % 3600) / 60);
+  return `${h}h ${m}m`;
+}
+
+/** Bowl elapsed strings like "00:10:05" or "00:10:05.123" → "10m 5s". */
+export function formatElapsed(elapsed) {
+  if (elapsed == null || elapsed === "") return "—";
+  const parts = String(elapsed).trim().split(":");
+  if (parts.length < 2 || parts.length > 3) return String(elapsed);
+  const nums = parts.map((p) => Number(p));
+  if (nums.some((n) => !Number.isFinite(n))) return String(elapsed);
+  let sec = 0;
+  if (nums.length === 3) sec = nums[0] * 3600 + nums[1] * 60 + nums[2];
+  else sec = nums[0] * 60 + nums[1];
+  return formatDuration(sec);
+}
+
+/** Span between two stamps, or from start until now when end is missing. */
+export function formatSpan(startedAt, endedAt) {
+  const start = parseStamp(startedAt);
+  if (!start) return null;
+  const end = endedAt ? parseStamp(endedAt) : new Date();
+  if (!end) return null;
+  return formatDuration((end.getTime() - start.getTime()) / 1000);
+}

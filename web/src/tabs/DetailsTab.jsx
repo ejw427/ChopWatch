@@ -1,3 +1,10 @@
+import {
+  formatDayStamp,
+  formatElapsed,
+  formatSpan,
+  formatStamp,
+} from "../format.js";
+
 function formatBytes(n) {
   if (!Number.isFinite(n) || n <= 0) return "0 B";
   const units = ["B", "KB", "MB", "GB", "TB"];
@@ -35,6 +42,15 @@ function historyPoints(history) {
   return [];
 }
 
+function sessionWhen(s) {
+  const start = formatStamp(s.startedAt);
+  const span = formatSpan(s.startedAt, s.endedAt);
+  if (s.endedAt) {
+    return `${start} → ${formatStamp(s.endedAt)}${span ? ` · ${span}` : ""}`;
+  }
+  return `${start} · active${span ? ` · ${span}` : ""}`;
+}
+
 export default function DetailsTab({ snap }) {
   const account = snap?.saladAccount;
   const hist = historyPoints(account?.history30d);
@@ -54,9 +70,7 @@ export default function DetailsTab({ snap }) {
               <span>machines HTTP {account.machinesStatus ?? "—"}</span>
               <span>history HTTP {account.history30dStatus ?? "—"}</span>
               <span>
-                {account.fetchedAt
-                  ? new Date(account.fetchedAt).toLocaleTimeString()
-                  : ""}
+                {account.fetchedAt ? `fetched ${formatStamp(account.fetchedAt)}` : ""}
               </span>
             </div>
             {account.machines?.items?.length > 0 && (
@@ -87,7 +101,7 @@ export default function DetailsTab({ snap }) {
                       row.total;
                     return (
                       <li key={`${day}-${i}`}>
-                        <span>{String(day).slice(0, 40)}</span>
+                        <span>{formatDayStamp(day)}</span>
                         <span className="mono">
                           {earned != null
                             ? money(Number(earned))
@@ -113,8 +127,7 @@ export default function DetailsTab({ snap }) {
               <span>
                 {s.shortId}
                 <div className="mono">
-                  {s.startedAt}
-                  {s.endedAt ? ` → ${s.endedAt}` : " · active"} · {s.lastTitle}
+                  {sessionWhen(s)} · {s.lastTitle}
                 </div>
               </span>
               <span className="mono">
@@ -134,11 +147,13 @@ export default function DetailsTab({ snap }) {
               <span>
                 {e.title}
                 <div className="mono">
-                  {e.at} · {e.shortId} · {e.state}
+                  {formatStamp(e.at)} · {e.shortId} · {e.state}
                 </div>
               </span>
               <span className="mono">
-                {e.progress != null ? `${pct(e.progress)}%` : e.elapsed || "—"}
+                {e.progress != null
+                  ? `${pct(e.progress)}%`
+                  : formatElapsed(e.elapsed)}
               </span>
             </li>
           ))}

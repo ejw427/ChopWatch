@@ -16,12 +16,15 @@ const HELPER_HOST = process.env.CHOPWATCH_HOST || "127.0.0.1";
 const HELPER_PORT = Number(process.env.CHOPWATCH_PORT || 3781);
 const HELPER_HEALTH = `http://${HELPER_HOST}:${HELPER_PORT}/health`;
 
+const HIDDEN_LOGIN_ARG = "--hidden";
+
 let mainWindow = null;
 let tray = null;
 let helperChild = null;
 let quitting = false;
 let actionBusy = false;
 let productVersion = "0.0.0";
+let startHidden = false;
 
 function isPackagedApp() {
   return app.isPackaged;
@@ -73,6 +76,97 @@ function uiUrl() {
     return `http://${HELPER_HOST}:${HELPER_PORT}/`;
   }
   return process.env.CHOPWATCH_UI_URL || "http://127.0.0.1:5177";
+}
+
+function loginItemArgs(enabled) {
+  return enabled ? [HIDDEN_LOGIN_ARG] : [];
+}
+
+function readOpenAtLogin() {
+  const settings = app.getLoginItemSettings({
+    path: process.execPath,
+    args: loginItemArgs(true),
+  });
+  return {
+    openAtLogin: Boolean(settings.openAtLogin),
+    available: isPackagedApp(),
+    packaged: isPackagedApp(),
+  };
+}
+
+function writeOpenAtLogin(enabled) {
+  if (!isPackagedApp()) {
+    return {
+      ok: false,
+      error: "Start with Windows is only available in the installed desktop app.",
+      ...readOpenAtLogin(),
+    };
+  }
+  app.setLoginItemSettings({
+    openAtLogin: Boolean(enabled),
+    path: process.execPath,
+    args: loginItemArgs(Boolean(enabled)),
+  });
+  return { ok: true, ...readOpenAtLogin() };
+}
+
+function detectStartHidden() {
+  if (process.argv.includes(HIDDEN_LOGIN_ARG)) return true;
+  try {
+    const settings = app.getLoginItemSettings();
+    if (settings.wasOpenedAtLogin && settings.wasOpenedAsHidden) return true;
+  } catch {
+    // ignore
+  }
+  return false;
+}
+
+function refreshTrayMenu() {
+  if (!tray) return;
+  const login = readOpenAtLogin();
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: "Show ChopWatch", click: () => showWindow() },
+      { label: "Hide", click: () => hideWindow() },
+      { type: "separator" },
+      {
+        label: "Start with Windows",
+        type: "checkbox",
+        checked: login.openAtLogin,
+        enabled: login.available,
+        click: (item) => {
+          const result = writeOpenAtLogin(item.checked);
+          if (!result.ok) {
+            console.error(result.error || "Failed to update login item");
+            refreshTrayMenu();
+          }
+        },
+      },
+      { type: "separator" },
+      {
+        label: "Restart helper",
+        click: async () => {
+          try {
+            await restartHelper();
+          } catch (err) {
+            console.error(err);
+          }
+        },
+      },
+      {
+        label: "Reload UI",
+        click: () => mainWindow?.reload(),
+      },
+      { type: "separator" },
+      {
+        label: "Quit",
+        click: () => {
+          quitting = true;
+          app.quit();
+        },
+      },
+    ]),
+  );
 }
 
 function loadTrayIcon() {
@@ -283,7 +377,10 @@ function createWindow() {
   });
 
   mainWindow.once("ready-to-show", () => {
-    if (!quitting) mainWindow.show();
+    if (quitting) return;
+    // Login / --hidden starts stay in the tray until the user opens the window.
+    if (startHidden) return;
+    mainWindow.show();
   });
 
   mainWindow.on("close", (event) => {
@@ -305,35 +402,7 @@ function createTray() {
   const icon = loadTrayIcon();
   tray = new Tray(icon);
   tray.setToolTip("ChopWatch");
-  tray.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: "Show ChopWatch", click: () => showWindow() },
-      { label: "Hide", click: () => hideWindow() },
-      { type: "separator" },
-      {
-        label: "Restart helper",
-        click: async () => {
-          try {
-            await restartHelper();
-          } catch (err) {
-            console.error(err);
-          }
-        },
-      },
-      {
-        label: "Reload UI",
-        click: () => mainWindow?.reload(),
-      },
-      { type: "separator" },
-      {
-        label: "Quit",
-        click: () => {
-          quitting = true;
-          app.quit();
-        },
-      },
-    ]),
-  );
+  refreshTrayMenu();
   tray.on("click", () => {
     if (!mainWindow || !mainWindow.isVisible()) showWindow();
     else hideWindow();
@@ -366,6 +435,14 @@ function registerIpc() {
     } finally {
       actionBusy = false;
     }
+  });
+
+  ipcMain.handle("app:get-open-at-login", async () => readOpenAtLogin());
+
+  ipcMain.handle("app:set-open-at-login", async (_event, enabled) => {
+    const result = writeOpenAtLogin(Boolean(enabled));
+    refreshTrayMenu();
+    return result;
   });
 
   ipcMain.handle("app:rebuild-restart", async () => {
@@ -414,6 +491,7 @@ if (!gotLock) {
 
   app.whenReady().then(async () => {
     productVersion = readProductVersion();
+    startHidden = detectStartHidden();
     createTray();
     startHelper();
     try {

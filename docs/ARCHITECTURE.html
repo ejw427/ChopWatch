@@ -184,7 +184,7 @@
 </tr>
 <tr>
 <td><code>desktop/</code></td>
-<td>Electron shell + tray. Dev loads Vite; packaged builds spawn the helper with <code>ELECTRON_RUN_AS_NODE</code> and load the UI from the helper (<code>CHOPWATCH_UI_DIR</code>).</td>
+<td>Electron shell + tray. Dev loads Vite; packaged builds spawn the helper with <code>ELECTRON_RUN_AS_NODE</code> and load the UI from the helper (<code>CHOPWATCH_UI_DIR</code>). Packaged builds can register <strong>Start with Windows</strong> (<code>app.setLoginItemSettings</code>, <code>--hidden</code> → tray).</td>
 </tr>
 <tr>
 <td>Root</td>

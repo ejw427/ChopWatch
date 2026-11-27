@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="ChopWatch">
+  <defs>
+    <radialGradient id="glow" cx="48%" cy="50%" r="46%">
+      <stop offset="0%" stop-color="#b6f26d" stop-opacity="0.34"/>
+      <stop offset="55%" stop-color="#3dcf8e" stop-opacity="0.1"/>
+      <stop offset="100%" stop-color="#12150f" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="steel" x1="10%" y1="20%" x2="90%" y2="80%">
+      <stop offset="0%" stop-color="#f3f8ea"/>
+      <stop offset="55%" stop-color="#c5d6b4"/>
+      <stop offset="100%" stop-color="#8fa57c"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="20%" y1="0%" x2="80%" y2="100%">
+      <stop offset="0%" stop-color="#e7ffb0"/>
+      <stop offset="100%" stop-color="#b6f26d"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="#12150f"/>
+  <circle cx="250" cy="250" r="200" fill="url(#glow)"/>
+
+  <!-- Stylized cleaver / chop blade -->
+  <path
+    d="M118 150
+       C118 130 132 118 152 118
+       L330 118
+       C360 118 382 140 382 170
+       L382 250
+       C382 290 348 318 308 318
+       L152 318
+       C132 318 118 304 118 284
+       Z"
+    fill="url(#steel)"
+  />
+  <!-- Cutting edge accent -->
+  <path
+    d="M152 292 L308 292 C340 292 360 274 360 250 L360 236"
+    fill="none"
+    stroke="url(#edge)"
+    stroke-width="18"
+    stroke-linecap="round"
+  />
+  <!-- Handle -->
+  <rect x="382" y="188" width="72" height="52" rx="16" fill="#b6f26d"/>
+
+  <!-- Watching pupil on the blade face -->
+  <circle cx="236" cy="210" r="28" fill="#12150f"/>
+  <circle cx="236" cy="210" r="14" fill="#b6f26d"/>
+</svg>

@@ -7,10 +7,12 @@ import DetailModal from "../DetailModal.jsx";
 import InfoTip from "../InfoTip.jsx";
 import ChopCommandBar from "../ChopCommandBar.jsx";
 import {
+  formatDuration,
   formatGiBFromMiB,
   formatMemPairFromMiB,
   formatMemPairFromMb,
   formatProcMemory,
+  formatStamp,
   formatTempC,
   formatWatts,
 } from "../format.js";
@@ -64,32 +66,6 @@ function pct(progress) {
 function money(v) {
   if (v == null || !Number.isFinite(Number(v))) return "—";
   return `$${Number(v).toFixed(2)}`;
-}
-
-function formatDuration(sec) {
-  if (sec == null || !Number.isFinite(sec) || sec < 0) return "—";
-  if (sec < 60) return `${Math.round(sec)}s`;
-  if (sec < 3600) {
-    const m = Math.floor(sec / 60);
-    const s = Math.round(sec % 60);
-    return `${m}m ${s}s`;
-  }
-  const h = Math.floor(sec / 3600);
-  const m = Math.round((sec % 3600) / 60);
-  return `${h}h ${m}m`;
-}
-
-function formatStamp(ts) {
-  if (!ts) return "—";
-  const d = new Date(String(ts).replace(" ", "T"));
-  if (Number.isNaN(d.getTime())) return String(ts);
-  return d.toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-  });
 }
 
 function pickBalance(balance) {

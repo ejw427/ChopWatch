@@ -10,12 +10,33 @@ import {
   cancelSaladConnect,
 } from "../api.js";
 
+const desktopApi =
+  typeof window !== "undefined" ? window.chopwatchDesktop : null;
+
 export default function SettingsTab({ snap, setSnap }) {
   const [authInput, setAuthInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [connect, setConnect] = useState(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [openAtLogin, setOpenAtLogin] = useState(false);
+  const [openAtLoginAvailable, setOpenAtLoginAvailable] = useState(false);
+
+  useEffect(() => {
+    if (!desktopApi?.getOpenAtLogin) return;
+    let cancelled = false;
+    desktopApi
+      .getOpenAtLogin()
+      .then((state) => {
+        if (cancelled || !state) return;
+        setOpenAtLogin(Boolean(state.openAtLogin));
+        setOpenAtLoginAvailable(Boolean(state.available));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -192,11 +213,62 @@ export default function SettingsTab({ snap, setSnap }) {
     }
   }
 
+  async function onToggleOpenAtLogin(checked) {
+    if (!desktopApi?.setOpenAtLogin) return;
+    setBusy(true);
+    setMsg("");
+    try {
+      const result = await desktopApi.setOpenAtLogin(checked);
+      setOpenAtLogin(Boolean(result?.openAtLogin));
+      setOpenAtLoginAvailable(Boolean(result?.available));
+      if (result?.ok === false) {
+        setMsg(result.error || "Could not update Start with Windows.");
+      } else {
+        setMsg(
+          result?.openAtLogin
+            ? "ChopWatch will start with Windows (tray)."
+            : "Start with Windows disabled.",
+        );
+      }
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const connected = Boolean(snap?.settings?.authCookieConfigured);
   const waiting = connect?.status === "waiting";
 
   return (
     <div className="grid">
+      {desktopApi && (
+        <section className="panel wide">
+          <h2>Desktop</h2>
+          <p className="hint">
+            Start with Windows launches ChopWatch in the tray after sign-in. Available in
+            the installed desktop app (not the browser-only or npm run app workflow).
+          </p>
+          <div className="toggle-row">
+            <label>
+              <input
+                type="checkbox"
+                checked={openAtLogin}
+                disabled={busy || !openAtLoginAvailable}
+                onChange={(e) => onToggleOpenAtLogin(e.target.checked)}
+              />
+              Start with Windows
+            </label>
+          </div>
+          {!openAtLoginAvailable && (
+            <p className="hint">
+              Toggle unlocks after you install a packaged build (`npm run dist` / GitHub
+              Release).
+            </p>
+          )}
+        </section>
+      )}
+
       <section className="panel wide">
         <h2>Connect Salad account</h2>
         <p className="hint">

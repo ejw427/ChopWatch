@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="ChopWatch">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="52%" r="44%">
+      <stop offset="0%" stop-color="#b6f26d" stop-opacity="0.34"/>
+      <stop offset="55%" stop-color="#3dcf8e" stop-opacity="0.1"/>
+      <stop offset="100%" stop-color="#12150f" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bar" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#5fa83c"/>
+      <stop offset="50%" stop-color="#b6f26d"/>
+      <stop offset="100%" stop-color="#e7ffb0"/>
+    </linearGradient>
+    <linearGradient id="frame" x1="12%" y1="10%" x2="88%" y2="92%">
+      <stop offset="0%" stop-color="#f3f8ea"/>
+      <stop offset="100%" stop-color="#9eb28c"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="#12150f"/>
+  <circle cx="256" cy="268" r="196" fill="url(#glow)"/>
+
+  <!-- Watching viewport brackets -->
+  <path
+    d="M108 168 V108 H168
+       M344 108 H404 V168
+       M404 344 V404 H344
+       M168 404 H108 V344"
+    fill="none"
+    stroke="url(#frame)"
+    stroke-width="34"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Chopping activity (GPU / bowl load) -->
+  <rect x="156" y="286" width="56" height="90" rx="16" fill="url(#bar)"/>
+  <rect x="228" y="224" width="56" height="152" rx="16" fill="url(#bar)"/>
+  <rect x="300" y="168" width="56" height="208" rx="16" fill="url(#bar)"/>
+
+  <!-- Live status -->
+  <circle cx="372" cy="156" r="20" fill="#b6f26d"/>
+</svg>

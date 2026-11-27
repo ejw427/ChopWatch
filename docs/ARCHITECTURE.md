@@ -37,7 +37,7 @@ flowchart LR
 | --- | --- |
 | `helper/` | Express on `127.0.0.1:3781`. Builds snapshots from Bowl logs, GPU/host, wallet lines, chopping-hour estimates, phase alerts. Optional Salad API. |
 | `web/` | Vite + React on `127.0.0.1:5177` in dev. Tabs: Overview, Details, Settings, About. |
-| `desktop/` | Electron shell + tray. Dev loads Vite; packaged builds spawn the helper with `ELECTRON_RUN_AS_NODE` and load the UI from the helper (`CHOPWATCH_UI_DIR`). |
+| `desktop/` | Electron shell + tray. Dev loads Vite; packaged builds spawn the helper with `ELECTRON_RUN_AS_NODE` and load the UI from the helper (`CHOPWATCH_UI_DIR`). Packaged builds can register **Start with Windows** (`app.setLoginItemSettings`, `--hidden` → tray). |
 | Root | `concurrently` runs helper + web; product version in root `package.json`. `npm run dist` builds Windows installers into `release/`. |
 
 ---

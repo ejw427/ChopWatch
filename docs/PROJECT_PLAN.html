@@ -170,7 +170,7 @@
 <p>---</p>
 <h2>Status at a glance</h2>
 <pre class="mermaid">flowchart LR
-  Done[Done&lt;br/&gt;helper · UI · Electron&lt;br/&gt;CI · Releases] --&gt; Near[Near term&lt;br/&gt;parser harden&lt;br/&gt;autostart · signing]
+  Done[Done&lt;br/&gt;helper · UI · Electron&lt;br/&gt;CI · Releases · autostart] --&gt; Near[Near term&lt;br/&gt;parser harden&lt;br/&gt;signing]
   Near --&gt; Later[Later&lt;br/&gt;Store / winget&lt;br/&gt;richer Star Chef]</pre>
 <div class="table-wrap"><table>
 <thead><tr>
@@ -179,15 +179,15 @@
 </tr></thead><tbody>
 <tr>
 <td><strong>Done</strong></td>
-<td>Local helper + React tabs, Bowl pipeline, opt-in Salad API, Electron tray, Vitest/CI, Windows NSIS + portable on GitHub Releases</td>
+<td>Local helper + React tabs, Bowl pipeline, opt-in Salad API, Electron tray, Start with Windows, Vitest/CI, Windows NSIS + portable on GitHub Releases</td>
 </tr>
 <tr>
 <td><strong>Near term</strong></td>
-<td>Parser hardening, Start with Windows, code-signing, richer Star Chef signals if Salad exposes them</td>
+<td>Parser hardening, code-signing, richer Star Chef signals if Salad exposes them</td>
 </tr>
 <tr>
 <td><strong>Later</strong></td>
-<td>winget / Microsoft Store, promote-<code>dev</code>-to-<code>main</code> script, keep marketing page on welchsoftware.net current</td>
+<td>winget / Microsoft Store, promote-<code>dev</code>-to-<code>main</code> script; keep welchsoftware.net ChopWatch page + <code>/chopwatch/</code> docs current</td>
 </tr>
 </tbody></table></div>
 <p>---</p>
@@ -200,6 +200,8 @@
 <li>GitHub repo hygiene: version bump hooks, docs + HTML sisters, Vitest, CI</li>
 <li>Windows packaging (<code>npm run dist</code>) + GitHub Releases workflow</li>
 <li>Electron tray shell (hide-on-close; Quit stops helper)</li>
+<li>Start with Windows (packaged app; tray login start via --hidden)</li>
+<li>Public product page + Mermaid docs hub on welchsoftware.net</li>
 </ul>
 <p>---</p>
 <h2>Near term</h2>
@@ -211,10 +213,6 @@
 <tr>
 <td>Harden Bowl parsers</td>
 <td>Salad log formats change; keep phases honest</td>
-</tr>
-<tr>
-<td>Start-with-Windows shortcut</td>
-<td>Desk chopping should come back after reboot</td>
 </tr>
 <tr>
 <td>Code-sign installers</td>
@@ -231,7 +229,6 @@
   section Stability
   Bowl parser hardening           :a1, 2026-11, 2M
   section Desktop polish
-  Start with Windows              :a2, 2026-12, 1M
   Code-sign installers            :a3, 2027-01, 2M
   section Product depth
   Star Chef signals if available  :a4, 2027-01, 2M</pre>

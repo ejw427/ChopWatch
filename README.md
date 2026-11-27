@@ -41,7 +41,7 @@ npm install
 npm run app
 ```
 
-Close the window to hide to the tray. Quit from the tray menu.
+Close the window to hide to the tray. Quit from the tray menu. In a packaged install, **Settings → Desktop** (or the tray menu) can enable **Start with Windows** — ChopWatch comes back in the tray after sign-in.
 
 **Cursor / VS Code:** use the status-bar task buttons (Stop, Rebuild + restart, …) or **Terminal → Run Task…**. See `.vscode/tasks.json`.
 

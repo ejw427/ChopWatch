@@ -1,6 +1,6 @@
 {
   "name": "chopwatch",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "private": true,
   "description": "Read-only local Salad chopping dashboard",
   "author": "Eric Welch",
@@ -27,6 +27,7 @@
     "dist:dir": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/pack-desktop.ps1 -DirOnly",
     "docs:html": "node scripts/md-to-html.mjs",
     "docs:view": "node scripts/md-to-html.mjs --open",
+    "brand:icons": "node brand/generate-icons.mjs",
     "hooks": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/setup-git-hooks.ps1"
   },
   "devDependencies": {
