@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Certificates</title>
+  <style>
+    :root {
+      --bg: #0f1412;
+      --panel: #18201c;
+      --text: #e8f0ea;
+      --muted: #9ab0a4;
+      --accent: #3dcf8e;
+      --border: #2a3830;
+      --code-bg: #0a0e0c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "IBM Plex Sans", system-ui, sans-serif;
+      background:
+        radial-gradient(ellipse 80% 50% at 10% -10%, #1a3d2e 0%, transparent 55%),
+        radial-gradient(ellipse 60% 40% at 100% 0%, #243528 0%, transparent 50%),
+        var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      min-height: 100vh;
+    }
+    main {
+      max-width: 52rem;
+      margin: 0 auto;
+      padding: 2.5rem 1.25rem 4rem;
+    }
+    
+    .meta {
+      font-size: 0.8rem;
+      color: #8aa090;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.75rem;
+    }
+    h1, h2, h3, h4 {
+      line-height: 1.25;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+    h1 { font-size: 2rem; margin: 0 0 0.75rem; color: var(--accent); }
+    h2 {
+      font-size: 1.35rem;
+      margin: 2rem 0 0.75rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid var(--border);
+    }
+    h3 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; }
+    h4 { font-size: 1rem; margin: 1.15rem 0 0.4rem; color: #c5d8cc; }
+    p { margin: 0.75rem 0; color: #d5e2d9; }
+    a { color: var(--accent); }
+    ul, ol { margin: 0.75rem 0; padding-left: 1.35rem; color: #d5e2d9; }
+    li { margin: 0.35rem 0; }
+    blockquote {
+      margin: 1rem 0;
+      padding: 0.65rem 1rem;
+      border-left: 3px solid var(--accent);
+      background: var(--panel);
+      color: var(--muted);
+      border-radius: 0 8px 8px 0;
+    }
+    blockquote p { margin: 0.35rem 0; color: inherit; }
+    hr {
+      border: 0;
+      border-top: 1px solid var(--border);
+      margin: 1.75rem 0;
+    }
+    .table-wrap {
+      overflow-x: auto;
+      margin: 1rem 0 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.55rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    th {
+      background: #1f2a24;
+      color: #c8e0d0;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    tr:last-child td { border-bottom: 0; }
+    td code { white-space: nowrap; }
+    .callout {
+      margin: 1rem 0;
+      padding: 0.85rem 1rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+    }
+    code {
+      font-family: "Cascadia Code", "Consolas", ui-monospace, monospace;
+      font-size: 0.9em;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.1em 0.35em;
+    }
+    pre {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.1rem;
+      overflow-x: auto;
+    }
+    pre code {
+      border: 0;
+      background: transparent;
+      padding: 0;
+      font-size: 0.88rem;
+    }
+    strong { color: #fff; }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="meta">Generated from <code>README.md</code> · do not edit by hand</p>
+    <h1>Certificates</h1>
+<h2><code>chopwatch-test-signing.cer</code></h2>
+<p>Public half of the SignPath <strong>self-signed test</strong> code-signing certificate (no private key).</p>
+<ul>
+<li><strong>Does not</strong> clear SmartScreen for strangers</li>
+<li>Trust it only on machines where you want to test SignPath-signed <em>test</em> builds</li>
+</ul>
+<p>Install on this PC:</p>
+<pre><code class="language-powershell">pwsh -File scripts/trust-test-cert.ps1</code></pre>
+<p>For real SmartScreen-calming signatures, use SignPath Foundation release signing — see <a href="../docs/SIGNING.html">docs/SIGNING.md</a>.</p>
+  </main>
+  
+</body>
+</html>

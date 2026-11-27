@@ -43,7 +43,18 @@ The hex digests should match.
 
 Until those are set, the release workflow **skips** SignPath and publishes unsigned builds + `SHA256SUMS.txt`.
 
-Self-signed certificates do **not** clear SmartScreen; ChopWatch does not use them for releases.
+Self-signed certificates do **not** clear SmartScreen for other people. ChopWatch keeps a **test** public cert only for local verification of the SignPath pipeline:
+
+| File | Role |
+| --- | --- |
+| `certs/chopwatch-test-signing.cer` | Public test cert from SignPath (no private key) |
+| `scripts/trust-test-cert.ps1` | Installs it into *your* CurrentUser Root + TrustedPublisher stores |
+
+```powershell
+pwsh -File scripts/trust-test-cert.ps1
+```
+
+Use a SignPath policy purpose of **Test signing** with that cert. **Release signing** for downloads should wait for the SignPath Foundation certificate after OSS approval.
 
 ## Related
 

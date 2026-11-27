@@ -196,7 +196,23 @@ Get-Content .\SHA256SUMS.txt</code></pre>
 </tr>
 </tbody></table></div>
 <p>Until those are set, the release workflow <strong>skips</strong> SignPath and publishes unsigned builds + <code>SHA256SUMS.txt</code>.</p>
-<p>Self-signed certificates do <strong>not</strong> clear SmartScreen; ChopWatch does not use them for releases.</p>
+<p>Self-signed certificates do <strong>not</strong> clear SmartScreen for other people. ChopWatch keeps a <strong>test</strong> public cert only for local verification of the SignPath pipeline:</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>File</th>
+<th>Role</th>
+</tr></thead><tbody>
+<tr>
+<td><code>certs/chopwatch-test-signing.cer</code></td>
+<td>Public test cert from SignPath (no private key)</td>
+</tr>
+<tr>
+<td><code>scripts/trust-test-cert.ps1</code></td>
+<td>Installs it into <em>your</em> CurrentUser Root + TrustedPublisher stores</td>
+</tr>
+</tbody></table></div>
+<pre><code class="language-powershell">pwsh -File scripts/trust-test-cert.ps1</code></pre>
+<p>Use a SignPath policy purpose of <strong>Test signing</strong> with that cert. <strong>Release signing</strong> for downloads should wait for the SignPath Foundation certificate after OSS approval.</p>
 <h2>Related</h2>
 <ul>
 <li>Release workflow: <code>.github/workflows/release.yml</code></li>
