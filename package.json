@@ -1,6 +1,6 @@
 {
   "name": "chopwatch",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "private": true,
   "description": "Read-only local Salad chopping dashboard",
   "author": "Eric Welch",
