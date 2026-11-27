@@ -38,14 +38,14 @@ mindmap
 
 ```mermaid
 flowchart LR
-  Done[Done<br/>helper · UI · Electron<br/>CI · Releases · autostart] --> Near[Near term<br/>parser harden<br/>signing]
+  Done[Done<br/>helper · UI · Electron<br/>CI · Releases · SHA256] --> Near[Near term<br/>parser keep-up<br/>SignPath if public]
   Near --> Later[Later<br/>Store / winget<br/>richer Star Chef]
 ```
 
 | Horizon | Themes |
 | --- | --- |
 | **Done** | Local helper + React tabs, Bowl pipeline, opt-in Salad API, Electron tray, Start with Windows, Vitest/CI, Windows NSIS + portable on GitHub Releases |
-| **Near term** | Parser hardening, code-signing, richer Star Chef signals if Salad exposes them |
+| **Near term** | Parser hardening (ongoing), free SignPath signing once repo is public, richer Star Chef signals if Salad exposes them |
 | **Later** | winget / Microsoft Store, promote-`dev`-to-`main` script; keep welchsoftware.net ChopWatch page + `/chopwatch/` docs current |
 
 ---
@@ -62,6 +62,8 @@ flowchart LR
 - Electron tray shell (hide-on-close; Quit stops helper)
 - Start with Windows (packaged app; tray login start via --hidden)
 - Public product page + Mermaid docs hub on welchsoftware.net
+- Release integrity: `SHA256SUMS.txt` on every Windows release; optional free SignPath path documented (no paid cert)
+- Bowl parser hardening pass: timezone stamps, negative Predicted wallet, InstallStarting / stop-reason / sparse pull fixtures
 
 ---
 
@@ -69,8 +71,8 @@ flowchart LR
 
 | Item | Why |
 | --- | --- |
-| Harden Bowl parsers | Salad log formats change; keep phases honest |
-| Code-sign installers | Calm SmartScreen / Chrome warnings |
+| Keep Bowl parsers honest | Salad log formats change; re-fixture when phases drift |
+| Enable free SignPath signing | Requires public GitHub repo + SignPath OSS approval — see [SIGNING.md](SIGNING.md) |
 | Richer Star Chef / reward progress | Only if Salad exposes clearer local or API signals |
 
 ```mermaid
@@ -78,9 +80,9 @@ gantt
   title Near-term focus (indicative)
   dateFormat  YYYY-MM
   section Stability
-  Bowl parser hardening           :a1, 2026-11, 2M
+  Bowl parser hardening (ongoing) :a1, 2026-11, 2M
   section Desktop polish
-  Code-sign installers            :a3, 2027-01, 2M
+  SHA256SUMS + optional SignPath  :a3, 2026-11, 2M
   section Product depth
   Star Chef signals if available  :a4, 2027-01, 2M
 ```
@@ -128,6 +130,7 @@ flowchart TB
 | --- | --- |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Processes, snapshot pipeline, workflows, safety |
 | [PROJECT_PLAN.md](PROJECT_PLAN.md) | This roadmap |
+| [SIGNING.md](SIGNING.md) | SHA256SUMS + free SignPath (no paid cert) |
 | [PRIVACY_POLICY.md](PRIVACY_POLICY.md) | What we read / never read |
 | [TESTING.md](TESTING.md) | Versions, HTML sisters, Vitest |
 

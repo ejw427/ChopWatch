@@ -14,7 +14,7 @@ Installers ship on [GitHub Releases](https://github.com/ejw427/ChopWatch/release
 - **Setup `.exe`** — NSIS installer (Start Menu + desktop shortcut)
 - **Portable `.exe`** — no install; run from a folder
 
-Windows SmartScreen may warn on unsigned builds — choose *More info* → *Run anyway* if you trust the release. Settings/secrets stay under your user profile (`%APPDATA%\ChopWatch`).
+Releases include `SHA256SUMS.txt` so you can verify the `.exe` hashes. Builds are unsigned unless free [SignPath](docs/SIGNING.md) OSS signing is enabled — SmartScreen may warn; choose *More info* → *Run anyway* if the hash matches and you trust the release. Settings/secrets stay under your user profile (`%APPDATA%\ChopWatch`).
 
 ## Safety
 
@@ -77,6 +77,7 @@ npm run hooks
 | [Privacy](docs/PRIVACY_POLICY.md) | [PRIVACY_POLICY.html](docs/PRIVACY_POLICY.html) |
 | [Testing / versions](docs/TESTING.md) | [TESTING.html](docs/TESTING.html) |
 | [Project plan](docs/PROJECT_PLAN.md) | [PROJECT_PLAN.html](docs/PROJECT_PLAN.html) |
+| [Signing (no paid cert)](docs/SIGNING.md) | [SIGNING.html](docs/SIGNING.html) |
 
 Regenerate HTML sisters: `npm run docs:html` · open them: `npm run docs:view`  
 Public: [welchsoftware.net/projects/chopwatch](https://www.welchsoftware.net/projects/chopwatch) · [docs hub](https://www.welchsoftware.net/chopwatch/)

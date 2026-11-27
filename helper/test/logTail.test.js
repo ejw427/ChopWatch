@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { parseTsAgeSec, readTail } from "../src/logTail.js";
+import { parseTsAgeSec, toParsableTs, readTail } from "../src/logTail.js";
 
 const tempFiles = [];
 
@@ -40,6 +40,14 @@ describe("parseTsAgeSec", () => {
     const age = parseTsAgeSec(ts);
     expect(age).toBeGreaterThanOrEqual(3);
     expect(age).toBeLessThan(30);
+  });
+
+  it("honors explicit zone offsets", () => {
+    const now = Date.parse("2026-11-26T18:00:00.000-07:00");
+    expect(parseTsAgeSec("2026-11-26 17:59:00.000 -07:00", now)).toBe(60);
+    expect(toParsableTs("2026-11-26 17:59:00.000 -07:00")).toBe(
+      "2026-11-26T17:59:00.000-07:00",
+    );
   });
 });
 

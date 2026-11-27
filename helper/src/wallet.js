@@ -1,10 +1,11 @@
 import { readRecentBowlText, parseTsAgeSec } from "./logTail.js";
 
+// Predicted can be negative (Salad uses -1 when unknown / idle).
 export const WALLET_RE =
-  /(?<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+).*\bWallet:\s*Current\((?<current>[0-9.]+)\),\s*Predicted\((?<predicted>[0-9.]+)\)/;
+  /(?<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+(?:\s+[+-]\d{2}:\d{2})?).*\bWallet:\s*Current\((?<current>-?[0-9.]+)\),\s*Predicted\((?<predicted>-?[0-9.]+)\)/;
 
 export const HEARTBEAT_RE =
-  /(?<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+).*\bOrchestrationEvent:\s*Heartbeat\b/;
+  /(?<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+(?:\s+[+-]\d{2}:\d{2})?).*\bOrchestrationEvent:\s*Heartbeat\b/;
 
 function newer(a, b) {
   if (!a) return b;
@@ -26,7 +27,7 @@ export function parseWalletAndHeartbeatText(text, nowMs = Date.now()) {
           current: Number(w.groups.current),
           predicted: Number(w.groups.predicted),
           source: "bowl-log",
-          note: "Parsed from Bowl Wallet lines. Predicted is Salad's projection, not a guarantee.",
+          note: "Parsed from Bowl Wallet lines. Predicted is Salad's projection, not a guarantee. Negative Predicted usually means unknown/idle.",
         };
       }
     }
@@ -35,18 +36,14 @@ export function parseWalletAndHeartbeatText(text, nowMs = Date.now()) {
   }
 
   if (wallet) {
-    const t = Date.parse(String(wallet.at).replace(" ", "T"));
-    wallet.ageSec = Number.isFinite(t)
-      ? Math.max(0, (nowMs - t) / 1000)
-      : null;
+    wallet.ageSec = parseTsAgeSec(wallet.at, nowMs);
   }
 
   let heartbeat = null;
   if (heartbeatAt) {
-    const t = Date.parse(String(heartbeatAt).replace(" ", "T"));
     heartbeat = {
       at: heartbeatAt,
-      ageSec: Number.isFinite(t) ? Math.max(0, (nowMs - t) / 1000) : null,
+      ageSec: parseTsAgeSec(heartbeatAt, nowMs),
     };
   }
 

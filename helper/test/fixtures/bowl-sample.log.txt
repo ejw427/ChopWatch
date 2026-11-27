@@ -1,9 +1,11 @@
-2025-11-26 10:00:00.000 [INF] Pull progress event: SpinnerPullProgressEvent(registry-na-02.salad.com/sce/deadbeef-0000-0000-0000-000000000000@sha256:1111111111111111111111111111111111111111111111111111111111111111)[abc12345-ac2f-4f4c-bd82-e8f52ab0f6a0] - 0.35 3500000000/10000000000B attempt 1/3 @ 2500000B/s eta 2600s
-2025-11-26 10:00:00.000 [INF] SendStateChange(SourceId { Id = aaa-bbb-ccc, Name = Pulling - WLInstanceStatePulling(abc12345 - 00:00:01), Progress(0.35) })
-2025-11-26 10:01:00.000 [INF] SendStateChange(SourceId { Id = aaa-bbb-ccc, Name = Starting - WLInstanceStateStarting[abc12345][ProcessWLStatusEvent] - 00:01:00] })
-2025-11-26 10:02:00.000 [INF] GetMetrics(SourceId { Id = aaa-bbb-ccc, Name = Running - WLInstanceStateRunning[abc12345] - 00:02:00] })
-2025-11-26 10:05:00.000 [INF] Wallet: Current(12.34), Predicted(15.67)
-2025-11-26 10:05:30.000 [INF] OrchestrationEvent: Heartbeat
-2025-11-26 10:10:00.000 [INF] SendStateChange(SourceId { Id = aaa-bbb-ccc, Name = Stopping - WLInstanceStateStopping[abc12345] - 00:10:00] })
-2025-11-26 10:10:05.000 [INF] SendStateChange(SourceId { Id = aaa-bbb-ccc, Name = Stopped - WLInstanceStateStopped(abc12345 - 00:10:05) })
-2025-11-26 11:00:00.000 [INF] SendStateChange(SourceId { Id = ddd-eee-fff, Name = Pulling - WLInstanceStatePulling(def456 - 00:00:00), Progress(0.10) })
+2025-11-26 10:00:00.000 -07:00 [INF] Pull progress event: SpinnerPullProgressEvent(registry-na-02.salad.com/sce/deadbeef-0000-0000-0000-000000000000@sha256:1111111111111111111111111111111111111111111111111111111111111111)[abc12345-ac2f-4f4c-bd82-e8f52ab0f6a0] - 0.35 3500000000/10000000000B attempt 1/3 @ 2500000B/s eta 2600s
+2025-11-26 10:00:00.000 -07:00 [INF] SendStateChange(SourceId { Id = aaa-bbb-ccc, Name = Pulling - WLInstanceStatePulling(abc12345 - 00:00:01.0001234), Progress(0.35) })
+2025-11-26 10:00:30.000 -07:00 [INF] GetMetrics(SourceId { Id = aaa-bbb-ccc, Name = Installing - WLInstanceStateInstallStarting(abc12345 - 00:00:30.0002324) })
+2025-11-26 10:01:00.000 -07:00 [INF] SendStateChange(SourceId { Id = aaa-bbb-ccc, Name = Starting - WLInstanceStateStarting[abc12345][] - 00:01:00.0007409] })
+2025-11-26 10:02:00.000 -07:00 [INF] GetMetrics(SourceId { Id = aaa-bbb-ccc, Name = Running - WLInstanceStateRunning[abc12345] - 00:02:00.0016893] })
+2025-11-26 10:05:00.000 -07:00 [INF] Wallet: Current(12.34), Predicted(15.67)
+2025-11-26 10:05:30.000 -07:00 [INF] OrchestrationEvent: Heartbeat
+2025-11-26 10:10:00.000 -07:00 [INF] SendStateChange(SourceId { Id = aaa-bbb-ccc, Name = Stopping - WLInstanceStateStopping[abc12345] - 00:10:00.0015577] })
+2025-11-26 10:10:05.000 -07:00 [INF] GetMetrics(SourceId { Id = aaa-bbb-ccc, Name = Stopped - WLInstanceStateStopped(abc12345 - 00:10:05.0011055), Stopped with Reason(Exited, Stopped) })
+2025-11-26 11:00:00.000 -07:00 [INF] SendStateChange(SourceId { Id = ddd-eee-fff, Name = Pulling - WLInstanceStatePulling(def456 - 00:00:00), Progress(0.10) })
+2025-11-26 11:00:01.000 -07:00 [INF] Pull progress event: SpinnerPullProgressEvent(registry-eu-02.salad.com/sce/x@sha256:2222222222222222222222222222222222222222222222222222222222222222)[def456aa-1111-2222-3333-444444444444] - 0.10 1000000000/10000000000B

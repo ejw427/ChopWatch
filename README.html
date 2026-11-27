@@ -141,7 +141,7 @@
 <li><strong>Setup <code>.exe</code></strong> — NSIS installer (Start Menu + desktop shortcut)</li>
 <li><strong>Portable <code>.exe</code></strong> — no install; run from a folder</li>
 </ul>
-<p>Windows SmartScreen may warn on unsigned builds — choose <em>More info</em> → <em>Run anyway</em> if you trust the release. Settings/secrets stay under your user profile (<code>%APPDATA%\ChopWatch</code>).</p>
+<p>Releases include <code>SHA256SUMS.txt</code> so you can verify the <code>.exe</code> hashes. Builds are unsigned unless free <a href="docs/SIGNING.html">SignPath</a> OSS signing is enabled — SmartScreen may warn; choose <em>More info</em> → <em>Run anyway</em> if the hash matches and you trust the release. Settings/secrets stay under your user profile (<code>%APPDATA%\ChopWatch</code>).</p>
 <h2>Safety</h2>
 <p>ChopWatch never:</p>
 <ul>
@@ -210,6 +210,10 @@
 <tr>
 <td><a href="docs/PROJECT_PLAN.html">Project plan</a></td>
 <td><a href="docs/PROJECT_PLAN.html">PROJECT_PLAN.html</a></td>
+</tr>
+<tr>
+<td><a href="docs/SIGNING.html">Signing (no paid cert)</a></td>
+<td><a href="docs/SIGNING.html">SIGNING.html</a></td>
 </tr>
 </tbody></table></div>
 <p>Regenerate HTML sisters: <code>npm run docs:html</code> · open them: <code>npm run docs:view</code> Public: <a href="https://www.welchsoftware.net/projects/chopwatch">welchsoftware.net/projects/chopwatch</a> · <a href="https://www.welchsoftware.net/chopwatch/">docs hub</a></p>

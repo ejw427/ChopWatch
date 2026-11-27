@@ -289,6 +289,6 @@ flowchart LR
 | Tests | Vitest — bowlLog, chopHours, wallet, alerts, logTail, version |
 | CI | `main` / `dev`: test → web build → `docs:html` (fail on HTML drift) |
 | Packaging | `scripts/pack-desktop.ps1` → `release/` |
-| Signing | Off today (`CSC_IDENTITY_AUTO_DISCOVERY=false`); SmartScreen may warn |
+| Signing | No paid cert. Releases publish `SHA256SUMS.txt`; optional free SignPath OSS when secrets exist. See [SIGNING.md](SIGNING.md). `CSC_IDENTITY_AUTO_DISCOVERY=false` for local dist. |
 
 Edit `.md` only; regenerate HTML with `npm run docs:html` / `npm run docs:view`.

@@ -60,9 +60,29 @@ export function readRecentBowlText(
   return { files, chunks, text: chunks.map((c) => c.text).join("\n") };
 }
 
-export function parseTsAgeSec(ts) {
+/**
+ * Normalize Bowl / wallet timestamps for Date.parse.
+ * Accepts: "2026-11-26 18:03:42.908", "2026-11-26 18:03:42.908 -07:00", ISO.
+ */
+export function toParsableTs(ts) {
+  if (ts == null) return null;
+  const raw = String(ts).trim();
+  if (!raw) return null;
+  const m = raw.match(
+    /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2}(?:\.\d+)?)\s*([Zz]|[+-]\d{2}:?\d{2})?$/,
+  );
+  if (!m) return raw.includes("T") ? raw : raw.replace(" ", "T");
+  let offset = m[3] || "";
+  if (offset && offset.toUpperCase() !== "Z" && !offset.includes(":")) {
+    offset = offset.replace(/([+-]\d{2})(\d{2})$/, "$1:$2");
+  }
+  if (offset && offset.toUpperCase() === "Z") offset = "Z";
+  return `${m[1]}T${m[2]}${offset}`;
+}
+
+export function parseTsAgeSec(ts, nowMs = Date.now()) {
   if (!ts) return null;
-  const t = Date.parse(String(ts).replace(" ", "T"));
+  const t = Date.parse(toParsableTs(ts));
   if (!Number.isFinite(t)) return null;
-  return Math.max(0, (Date.now() - t) / 1000);
+  return Math.max(0, (nowMs - t) / 1000);
 }

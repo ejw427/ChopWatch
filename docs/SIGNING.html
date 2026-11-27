@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Windows signing (no paid certificate)</title>
+  <style>
+    :root {
+      --bg: #0f1412;
+      --panel: #18201c;
+      --text: #e8f0ea;
+      --muted: #9ab0a4;
+      --accent: #3dcf8e;
+      --border: #2a3830;
+      --code-bg: #0a0e0c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "IBM Plex Sans", system-ui, sans-serif;
+      background:
+        radial-gradient(ellipse 80% 50% at 10% -10%, #1a3d2e 0%, transparent 55%),
+        radial-gradient(ellipse 60% 40% at 100% 0%, #243528 0%, transparent 50%),
+        var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      min-height: 100vh;
+    }
+    main {
+      max-width: 52rem;
+      margin: 0 auto;
+      padding: 2.5rem 1.25rem 4rem;
+    }
+    
+    .meta {
+      font-size: 0.8rem;
+      color: #8aa090;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.75rem;
+    }
+    h1, h2, h3, h4 {
+      line-height: 1.25;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+    h1 { font-size: 2rem; margin: 0 0 0.75rem; color: var(--accent); }
+    h2 {
+      font-size: 1.35rem;
+      margin: 2rem 0 0.75rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid var(--border);
+    }
+    h3 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; }
+    h4 { font-size: 1rem; margin: 1.15rem 0 0.4rem; color: #c5d8cc; }
+    p { margin: 0.75rem 0; color: #d5e2d9; }
+    a { color: var(--accent); }
+    ul, ol { margin: 0.75rem 0; padding-left: 1.35rem; color: #d5e2d9; }
+    li { margin: 0.35rem 0; }
+    blockquote {
+      margin: 1rem 0;
+      padding: 0.65rem 1rem;
+      border-left: 3px solid var(--accent);
+      background: var(--panel);
+      color: var(--muted);
+      border-radius: 0 8px 8px 0;
+    }
+    blockquote p { margin: 0.35rem 0; color: inherit; }
+    hr {
+      border: 0;
+      border-top: 1px solid var(--border);
+      margin: 1.75rem 0;
+    }
+    .table-wrap {
+      overflow-x: auto;
+      margin: 1rem 0 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.55rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    th {
+      background: #1f2a24;
+      color: #c8e0d0;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    tr:last-child td { border-bottom: 0; }
+    td code { white-space: nowrap; }
+    .callout {
+      margin: 1rem 0;
+      padding: 0.85rem 1rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+    }
+    code {
+      font-family: "Cascadia Code", "Consolas", ui-monospace, monospace;
+      font-size: 0.9em;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.1em 0.35em;
+    }
+    pre {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.1rem;
+      overflow-x: auto;
+    }
+    pre code {
+      border: 0;
+      background: transparent;
+      padding: 0;
+      font-size: 0.88rem;
+    }
+    strong { color: #fff; }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="meta">Generated from <code>SIGNING.md</code> · do not edit by hand</p>
+    <h1>Windows signing (no paid certificate)</h1>
+<p>ChopWatch does <strong>not</strong> buy a commercial Authenticode certificate. Paid OV/EV certs calm SmartScreen fastest, but they are optional for this project.</p>
+<h2>What ships today</h2>
+<p>Every GitHub Release includes:</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Artifact</th>
+<th>Role</th>
+</tr></thead><tbody>
+<tr>
+<td>Setup / portable <code>.exe</code></td>
+<td>Built unsigned unless SignPath secrets are configured</td>
+</tr>
+<tr>
+<td><code>SHA256SUMS.txt</code></td>
+<td>Hashes of those <code>.exe</code> files for integrity checks</td>
+</tr>
+</tbody></table></div>
+<p>SmartScreen may still show <strong>Windows protected your PC</strong> on unsigned downloads. That is expected. Prefer verifying the hash, then <em>More info</em> → <em>Run anyway</em> if you trust the release.</p>
+<h3>Verify a download (PowerShell)</h3>
+<pre><code class="language-powershell">Get-FileHash .\ChopWatch-Setup-*.exe -Algorithm SHA256
+Get-Content .\SHA256SUMS.txt</code></pre>
+<p>The hex digests should match.</p>
+<h2>Free Authenticode: SignPath Foundation (optional)</h2>
+<p><a href="https://about.signpath.io/product/open-source">SignPath Foundation</a> signs open-source Windows builds for free. The publisher users see is <strong>SignPath Foundation</strong> (not your personal name). Requirements include:</p>
+<ol>
+<li><strong>OSI license</strong> — this repo uses MIT (<code>LICENSE</code>)</li>
+<li><strong>Public GitHub repo</strong> — private repos do not qualify</li>
+<li><strong>Automated CI build</strong> — already present (<code>.github/workflows/release.yml</code>)</li>
+<li><strong>SignPath project + API token</strong> — apply via SignPath OSS onboarding, then set GitHub secrets</li>
+</ol>
+<h3>Secrets / variables (after approval)</h3>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Name</th>
+<th>Where</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td><code>SIGNPATH_API_TOKEN</code></td>
+<td>Actions secret</td>
+<td>Submit signing requests</td>
+</tr>
+<tr>
+<td><code>SIGNPATH_ORGANIZATION_ID</code></td>
+<td>Actions variable or secret</td>
+<td>SignPath org UUID</td>
+</tr>
+<tr>
+<td><code>SIGNPATH_PROJECT_SLUG</code></td>
+<td>Actions variable (default <code>chopwatch</code>)</td>
+<td>Project slug</td>
+</tr>
+<tr>
+<td><code>SIGNPATH_SIGNING_POLICY_SLUG</code></td>
+<td>Actions variable (default <code>release-signing</code>)</td>
+<td>Policy slug</td>
+</tr>
+<tr>
+<td><code>SIGNPATH_ARTIFACT_CONFIGURATION_SLUG</code></td>
+<td>Actions variable (default <code>windows-installers</code>)</td>
+<td>Artifact config</td>
+</tr>
+</tbody></table></div>
+<p>Until those are set, the release workflow <strong>skips</strong> SignPath and publishes unsigned builds + <code>SHA256SUMS.txt</code>.</p>
+<p>Self-signed certificates do <strong>not</strong> clear SmartScreen; ChopWatch does not use them for releases.</p>
+<h2>Related</h2>
+<ul>
+<li>Release workflow: <code>.github/workflows/release.yml</code></li>
+<li>Packaging: <code>scripts/pack-desktop.ps1</code></li>
+<li>Product roadmap: <a href="PROJECT_PLAN.html">PROJECT_PLAN.md</a></li>
+</ul>
+  </main>
+  
+</body>
+</html>

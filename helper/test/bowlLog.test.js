@@ -17,10 +17,11 @@ const sample = readFileSync(
 );
 
 describe("parseStates", () => {
-  it("parses pulling / starting / running / stopping / stopped", () => {
+  it("parses pulling / install / starting / running / stopping / stopped", () => {
     const events = parseStates(sample);
     expect(events.map((e) => e.state)).toEqual([
       "Pulling",
+      "InstallStarting",
       "Starting",
       "Running",
       "Stopping",
@@ -29,19 +30,34 @@ describe("parseStates", () => {
     ]);
     expect(events[0].progress).toBeCloseTo(0.35);
     expect(events[0].phase).toBe("downloading");
-    expect(events[2].phase).toBe("running");
+    expect(events[1].phase).toBe("initializing");
+    expect(events[3].phase).toBe("running");
     expect(events[0].shortId).toBe("abc12345");
+    expect(events[0].at).toContain("-07:00");
+    expect(events[5].stopReason).toBe("Exited, Stopped");
   });
 
-  it("ignores lines without lifecycle markers", () => {
-    expect(parseStates("noise\nWallet: Current(1), Predicted(2)\n")).toEqual([]);
+  it("keeps fractional elapsed and empty Starting brackets", () => {
+    const events = parseStates(sample);
+    expect(events[2].state).toBe("Starting");
+    expect(events[2].elapsed).toMatch(/00:01:00/);
+    expect(events[0].elapsed).toMatch(/00:00:01/);
+  });
+
+  it("ignores nested Duration metadata and non-lifecycle lines", () => {
+    const noise = `
+2026-11-26 10:00:00.000 -07:00 [INF] Prev[Pulling]: WLStatusEvent -> WLInstanceStatePulling(WLInstanceStateDuration { StartedAt = 11/27/2026 3:13:24 AM +00:00, StoppedAt =  }) - Progress(1)
+2026-11-26 10:00:00.000 -07:00 [INF] Wallet: Current(1), Predicted(2)
+2026-11-26 10:00:00.000 -07:00 [INF] Node Compatibility Workload Result WLInstanceStateStopped(abc12345 - 00:00:01), Stopped with Reason(Exited, Stopped)
+`;
+    expect(parseStates(noise)).toEqual([]);
   });
 });
 
 describe("parsePullProgress", () => {
   it("parses size, speed, ETA without image digests", () => {
     const pulls = parsePullProgress(sample);
-    expect(pulls).toHaveLength(1);
+    expect(pulls.length).toBeGreaterThanOrEqual(1);
     expect(pulls[0].shortId).toBe("abc12345");
     expect(pulls[0].bytesDone).toBe(3_500_000_000);
     expect(pulls[0].bytesTotal).toBe(10_000_000_000);
@@ -50,13 +66,25 @@ describe("parsePullProgress", () => {
     expect(pulls[0].attempt).toBe(1);
     expect(pulls[0].attemptMax).toBe(3);
     expect(pulls[0].registryHost).toBe("registry-na-02");
+    expect(pulls[0].at).toContain("-07:00");
     expect(JSON.stringify(pulls[0])).not.toMatch(/sha256/i);
     expect(JSON.stringify(pulls[0])).not.toMatch(/deadbeef/i);
   });
 
+  it("tolerates pull lines missing attempt/speed/eta", () => {
+    const pulls = parsePullProgress(sample);
+    const sparse = pulls.find((p) => p.shortId === "def456aa");
+    expect(sparse).toBeTruthy();
+    expect(sparse.progress).toBeCloseTo(0.1);
+    expect(sparse.bytesDone).toBe(1_000_000_000);
+    expect(sparse.attempt).toBeNull();
+    expect(sparse.bytesPerSec).toBeNull();
+    expect(sparse.etaSec).toBeNull();
+  });
+
   it("picks latest pull for a shortId", () => {
     const text = `${sample}
-2025-11-26 10:00:30.000 [INF] Pull progress event: SpinnerPullProgressEvent(registry-eu-02.salad.com/sce/x@sha256:2222222222222222222222222222222222222222222222222222222222222222)[abc12345-ac2f-4f4c-bd82-e8f52ab0f6a0] - 0.40 4000000000/10000000000B attempt 1/3 @ 3000000B/s eta 2000s
+2025-11-26 10:00:30.000 -07:00 [INF] Pull progress event: SpinnerPullProgressEvent(registry-eu-02.salad.com/sce/x@sha256:2222222222222222222222222222222222222222222222222222222222222222)[abc12345-ac2f-4f4c-bd82-e8f52ab0f6a0] - 0.40 4000000000/10000000000B attempt 1/3 @ 3000000B/s eta 2000s
 `;
     const pulls = parsePullProgress(text);
     const latest = latestPullForShortId(pulls, "abc12345");

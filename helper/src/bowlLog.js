@@ -9,31 +9,41 @@ const STATE_LABELS = {
   Stopped: { phase: "stopped", title: "Job Stopped" },
 };
 
+// Bowl stamps often include a zone offset: "2026-11-26 18:03:42.908 -07:00"
+const TS = String.raw`(?<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+(?:\s+[+-]\d{2}:\d{2})?)`;
+
 // Salad emits lifecycle on both SendStateChange and GetMetrics.
 // Pulling: Name = Pulling - WLInstanceStatePulling(id - elapsed), Progress(0.35)
-const STATE_PULL =
-  /(?<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+).*(?:SendStateChange|GetMetrics)\(SourceId \{ Id = (?<id>[^,]+), Name = (?<label>[A-Za-z]+) - WLInstanceState(?<state>[A-Za-z]+)\((?<shortId>[a-f0-9]+) - (?<elapsed>[0-9:.]+)\),\s*Progress\((?<progress>[0-9.]+)\)/;
+const STATE_PULL = new RegExp(
+  `${TS}.*(?:SendStateChange|GetMetrics)\\(SourceId \\{ Id = (?<id>[^,]+), Name = (?<label>[A-Za-z]+) - WLInstanceState(?<state>[A-Za-z]+)\\((?<shortId>[a-f0-9]+) - (?<elapsed>[0-9:.]+)\\),\\s*Progress\\((?<progress>[0-9.]+)\\)`,
+);
 
 // Bracket form (Starting / Running / Stopping):
 // Name = Running - WLInstanceStateRunning[id] - elapsed]
+// Name = Starting - WLInstanceStateStarting[id][] - elapsed]
 // Name = Starting - WLInstanceStateStarting[id][ProcessWLStatusEvent] - elapsed]
-const STATE_BRACKET =
-  /(?<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+).*(?:SendStateChange|GetMetrics)\(SourceId \{ Id = (?<id>[^,]+), Name = (?<label>[A-Za-z]+) - WLInstanceState(?<state>[A-Za-z]+)\[(?<shortId>[a-f0-9]+)\](?:\[[^\]]*\])?\s*-\s*(?<elapsed>[0-9:.]+)\]/;
+const STATE_BRACKET = new RegExp(
+  `${TS}.*(?:SendStateChange|GetMetrics)\\(SourceId \\{ Id = (?<id>[^,]+), Name = (?<label>[A-Za-z]+) - WLInstanceState(?<state>[A-Za-z]+)\\[(?<shortId>[a-f0-9]+)\\](?:\\[[^\\]]*\\])?\\s*-\\s*(?<elapsed>[0-9:.]+)\\]`,
+);
 
-// Paren form without progress (Stopped / InstallStarting):
+// Paren form without progress (Stopped / InstallStarting). May trail ", Stopped with Reason(...)".
 // Name = Stopped - WLInstanceStateStopped(id - elapsed)
 // Name = Installing - WLInstanceStateInstallStarting(id - elapsed)
-const STATE_PAREN_NO_PROGRESS =
-  /(?<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+).*(?:SendStateChange|GetMetrics)\(SourceId \{ Id = (?<id>[^,]+), Name = (?<label>[A-Za-z]+) - WLInstanceState(?<state>[A-Za-z]+)\((?<shortId>[a-f0-9]+) - (?<elapsed>[0-9:.]+)\)/;
+const STATE_PAREN_NO_PROGRESS = new RegExp(
+  `${TS}.*(?:SendStateChange|GetMetrics)\\(SourceId \\{ Id = (?<id>[^,]+), Name = (?<label>[A-Za-z]+) - WLInstanceState(?<state>[A-Za-z]+)\\((?<shortId>[a-f0-9]+) - (?<elapsed>[0-9:.]+)\\)(?:,\\s*Stopped with Reason\\((?<stopReason>[^)]*)\\))?`,
+);
 
 // Rich pull metrics (size / speed / ETA). Image path intentionally not captured.
-// Pull progress event: SpinnerPullProgressEvent(registry-na-02.salad.com/sce/…@sha256:…)[uuid] - 0.18 2811463129/15791030627B attempt 1/3 @ 957192B/s eta 13560s
-const PULL_PROGRESS =
-  /(?<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+).*Pull progress event: SpinnerPullProgressEvent\((?<registryHost>registry-[a-z0-9-]+)\.salad\.com[^)]*\)\[(?<fullId>[a-f0-9-]+)\]\s*-\s*(?<progress>[0-9.]+)\s+(?<bytesDone>\d+)\/(?<bytesTotal>\d+)B\s+attempt\s+(?<attempt>\d+)\/(?<attemptMax>\d+)\s+@\s+(?<bytesPerSec>\d+)B\/s\s+eta\s+(?<etaSec>\d+)s/i;
+// attempt / @speed / eta are optional so minor Salad wording drift still yields bytes+progress.
+const PULL_PROGRESS = new RegExp(
+  `${TS}.*Pull progress event: SpinnerPullProgressEvent\\((?<registryHost>registry-[a-z0-9-]+)\\.salad\\.com[^)]*\\)\\[(?<fullId>[a-f0-9-]+)\\]\\s*-\\s*(?<progress>[0-9.]+)\\s+(?<bytesDone>\\d+)\\/(?<bytesTotal>\\d+)B(?:\\s+attempt\\s+(?<attempt>\\d+)\\/(?<attemptMax>\\d+))?(?:\\s+@\\s+(?<bytesPerSec>\\d+)B\\/s)?(?:\\s+eta\\s+(?<etaSec>\\d+)s)?`,
+  "i",
+);
 
 export function toEvent(groups, progress) {
   const state = groups.state;
   const meta = STATE_LABELS[state] || { phase: "unknown", title: state };
+  const stopReason = groups.stopReason?.trim() || null;
   return {
     at: groups.ts,
     sourceId: groups.id,
@@ -44,6 +54,7 @@ export function toEvent(groups, progress) {
     progress: progress == null || !Number.isFinite(progress) ? null : progress,
     phase: meta.phase,
     title: meta.title,
+    stopReason,
   };
 }
 
@@ -51,6 +62,8 @@ export function parseStates(text) {
   const events = [];
   for (const line of text.split(/\r?\n/)) {
     if (!line.includes("WLInstanceState")) continue;
+    // Skip nested duration metadata (Prev[…] WLInstanceStateDuration {…}).
+    if (line.includes("WLInstanceStateDuration")) continue;
     if (!line.includes("SendStateChange") && !line.includes("GetMetrics")) continue;
 
     let m = line.match(STATE_PULL);
@@ -322,8 +335,8 @@ export function readWorkloadStatus(processesRunning, paused = false) {
       sizeBytes: f.size,
       mtimeMs: f.mtimeMs,
     })),
-    note: "Instance IDs are Salad lifecycle tokens, not customer job names. Running often arrives via GetMetrics. Pull size/speed/ETA come from SpinnerPullProgressEvent (no image digests).",
+    note: "Instance IDs are Salad lifecycle tokens, not customer job names. Running often arrives via GetMetrics. Pull size/speed/ETA come from SpinnerPullProgressEvent (no image digests). Timestamps keep Salad's zone offset when present.",
   };
 }
 
-export { listBowlLogFiles, STATE_LABELS, PULL_PROGRESS };
+export { listBowlLogFiles, STATE_LABELS, PULL_PROGRESS, TS };
