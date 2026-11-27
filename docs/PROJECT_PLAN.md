@@ -22,6 +22,7 @@ mindmap
       Pause / resume flag
       Allowlisted prefs
       Phase toasts
+      Slow-download bail
     Opt-in
       Connect Salad cookie
       Official balance / history
@@ -55,6 +56,7 @@ flowchart LR
 - Bowl lifecycle parsing, wallet lines, GPU/host, chopping hours, phase alerts
 - Opt-in Salad API + Connect Salad browser capture
 - Allowlisted pause/resume and preference edits from Overview
+- Slow-download bail: auto pause→resume re-roll for stuck unpaid pulls + Overview Skip download
 - GitHub repo hygiene: version bump hooks, docs + HTML sisters, Vitest, CI
 - Windows packaging (`npm run dist`) + GitHub Releases workflow
 - Electron tray shell (hide-on-close; Quit stops helper)

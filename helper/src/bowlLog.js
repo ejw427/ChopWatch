@@ -26,6 +26,11 @@ const STATE_BRACKET =
 const STATE_PAREN_NO_PROGRESS =
   /(?<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+).*(?:SendStateChange|GetMetrics)\(SourceId \{ Id = (?<id>[^,]+), Name = (?<label>[A-Za-z]+) - WLInstanceState(?<state>[A-Za-z]+)\((?<shortId>[a-f0-9]+) - (?<elapsed>[0-9:.]+)\)/;
 
+// Rich pull metrics (size / speed / ETA). Image path intentionally not captured.
+// Pull progress event: SpinnerPullProgressEvent(registry-na-02.salad.com/sce/…@sha256:…)[uuid] - 0.18 2811463129/15791030627B attempt 1/3 @ 957192B/s eta 13560s
+const PULL_PROGRESS =
+  /(?<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+).*Pull progress event: SpinnerPullProgressEvent\((?<registryHost>registry-[a-z0-9-]+)\.salad\.com[^)]*\)\[(?<fullId>[a-f0-9-]+)\]\s*-\s*(?<progress>[0-9.]+)\s+(?<bytesDone>\d+)\/(?<bytesTotal>\d+)B\s+attempt\s+(?<attempt>\d+)\/(?<attemptMax>\d+)\s+@\s+(?<bytesPerSec>\d+)B\/s\s+eta\s+(?<etaSec>\d+)s/i;
+
 export function toEvent(groups, progress) {
   const state = groups.state;
   const meta = STATE_LABELS[state] || { phase: "unknown", title: state };
@@ -64,6 +69,49 @@ export function parseStates(text) {
     }
   }
   return events;
+}
+
+/** Parse SpinnerPullProgressEvent lines (bytes, speed, ETA). No image digests. */
+export function parsePullProgress(text) {
+  const events = [];
+  for (const line of text.split(/\r?\n/)) {
+    if (!line.includes("Pull progress event")) continue;
+    if (!line.includes("SpinnerPullProgressEvent")) continue;
+    const m = line.match(PULL_PROGRESS);
+    if (!m?.groups) continue;
+    const g = m.groups;
+    const fullId = g.fullId;
+    const shortId = fullId.includes("-") ? fullId.split("-")[0] : fullId.slice(0, 8);
+    const progress = Number(g.progress);
+    const bytesDone = Number(g.bytesDone);
+    const bytesTotal = Number(g.bytesTotal);
+    const bytesPerSec = Number(g.bytesPerSec);
+    const etaSec = Number(g.etaSec);
+    const attempt = Number(g.attempt);
+    const attemptMax = Number(g.attemptMax);
+    events.push({
+      at: g.ts,
+      shortId,
+      progress: Number.isFinite(progress) ? progress : null,
+      bytesDone: Number.isFinite(bytesDone) ? bytesDone : null,
+      bytesTotal: Number.isFinite(bytesTotal) ? bytesTotal : null,
+      bytesPerSec: Number.isFinite(bytesPerSec) ? bytesPerSec : null,
+      etaSec: Number.isFinite(etaSec) ? etaSec : null,
+      attempt: Number.isFinite(attempt) ? attempt : null,
+      attemptMax: Number.isFinite(attemptMax) ? attemptMax : null,
+      registryHost: g.registryHost || null,
+    });
+  }
+  return events;
+}
+
+export function latestPullForShortId(pullEvents, shortId) {
+  if (!pullEvents?.length) return null;
+  if (!shortId) return pullEvents[pullEvents.length - 1] || null;
+  for (let i = pullEvents.length - 1; i >= 0; i--) {
+    if (pullEvents[i].shortId === shortId) return pullEvents[i];
+  }
+  return null;
 }
 
 export function inferFinding(processesRunning, lastEvent, ageSec, paused) {
@@ -187,6 +235,11 @@ function enrichCurrent(base, sessions) {
   };
 }
 
+function pullAgeSec(pull) {
+  if (!pull?.at) return null;
+  return parseTsAgeSec(pull.at);
+}
+
 export function readWorkloadStatus(processesRunning, paused = false) {
   // Newest log can be huge with HTTP noise; prefer reading it nearly whole so a
   // single Running GetMetrics isn't missed behind Pulling / probe spam.
@@ -194,6 +247,9 @@ export function readWorkloadStatus(processesRunning, paused = false) {
     fullFileMaxBytes: 16_000_000,
   });
   const events = parseStates(text).sort((a, b) =>
+    a.at < b.at ? -1 : a.at > b.at ? 1 : 0,
+  );
+  const pullEvents = parsePullProgress(text).sort((a, b) =>
     a.at < b.at ? -1 : a.at > b.at ? 1 : 0,
   );
   const sessions = buildSessions(events);
@@ -217,6 +273,7 @@ export function readWorkloadStatus(processesRunning, paused = false) {
           state: last?.state ?? null,
           at: last?.at ?? null,
           ageSec,
+          pull: null,
         }
       : {
           phase: last.phase,
@@ -228,9 +285,23 @@ export function readWorkloadStatus(processesRunning, paused = false) {
           state: last.state,
           at: last.at,
           ageSec,
+          pull: null,
         },
     sessions,
   );
+
+  if (current.phase === "downloading") {
+    const pull = latestPullForShortId(pullEvents, current.shortId);
+    if (pull) {
+      current.pull = {
+        ...pull,
+        ageSec: pullAgeSec(pull),
+      };
+      if (current.progress == null && pull.progress != null) {
+        current.progress = pull.progress;
+      }
+    }
+  }
 
   return {
     current,
@@ -251,8 +322,8 @@ export function readWorkloadStatus(processesRunning, paused = false) {
       sizeBytes: f.size,
       mtimeMs: f.mtimeMs,
     })),
-    note: "Instance IDs are Salad lifecycle tokens, not customer job names. Running often arrives via GetMetrics.",
+    note: "Instance IDs are Salad lifecycle tokens, not customer job names. Running often arrives via GetMetrics. Pull size/speed/ETA come from SpinnerPullProgressEvent (no image digests).",
   };
 }
 
-export { listBowlLogFiles, STATE_LABELS };
+export { listBowlLogFiles, STATE_LABELS, PULL_PROGRESS };

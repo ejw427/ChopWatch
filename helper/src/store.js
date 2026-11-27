@@ -43,6 +43,13 @@ const DEFAULT_SETTINGS = {
   browserAlertsHint: true,
   saladApiEnabled: false,
   autoFillAuth: true,
+  downloadBailEnabled: true,
+  downloadBailGraceMinutes: 10,
+  downloadBailMaxMinutes: 30,
+  downloadBailStallMinutes: 10,
+  downloadBailMaxEtaMinutes: 45,
+  downloadBailEtaPersistMinutes: 8,
+  downloadBailCooldownMinutes: 25,
 };
 
 const DEFAULT_SECRETS = {
@@ -56,6 +63,18 @@ const DEFAULT_STATE = {
   lastAlertKey: null,
   gpuUtilSamples: [],
   gpuUtilSampleAt: null,
+  downloadBailLastAt: null,
+  downloadBailLastShortId: null,
+  downloadBailLastReason: null,
+  downloadBailPendingResumeAt: null,
+  downloadBailProgressShortId: null,
+  downloadBailProgressValue: null,
+  downloadBailProgressAt: null,
+  downloadBailEtaOverSince: null,
+  downloadBailEtaOverShortId: null,
+  downloadBailLastEtaSec: null,
+  downloadBailRetriesByShortId: {},
+  downloadBailBlackoutUntil: {},
 };
 
 export function readSettings() {

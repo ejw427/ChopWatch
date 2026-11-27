@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   parseStates,
+  parsePullProgress,
+  latestPullForShortId,
   inferFinding,
   buildSessions,
 } from "../src/bowlLog.js";
@@ -28,11 +30,39 @@ describe("parseStates", () => {
     expect(events[0].progress).toBeCloseTo(0.35);
     expect(events[0].phase).toBe("downloading");
     expect(events[2].phase).toBe("running");
-    expect(events[0].shortId).toBe("abc123");
+    expect(events[0].shortId).toBe("abc12345");
   });
 
   it("ignores lines without lifecycle markers", () => {
     expect(parseStates("noise\nWallet: Current(1), Predicted(2)\n")).toEqual([]);
+  });
+});
+
+describe("parsePullProgress", () => {
+  it("parses size, speed, ETA without image digests", () => {
+    const pulls = parsePullProgress(sample);
+    expect(pulls).toHaveLength(1);
+    expect(pulls[0].shortId).toBe("abc12345");
+    expect(pulls[0].bytesDone).toBe(3_500_000_000);
+    expect(pulls[0].bytesTotal).toBe(10_000_000_000);
+    expect(pulls[0].bytesPerSec).toBe(2_500_000);
+    expect(pulls[0].etaSec).toBe(2600);
+    expect(pulls[0].attempt).toBe(1);
+    expect(pulls[0].attemptMax).toBe(3);
+    expect(pulls[0].registryHost).toBe("registry-na-02");
+    expect(JSON.stringify(pulls[0])).not.toMatch(/sha256/i);
+    expect(JSON.stringify(pulls[0])).not.toMatch(/deadbeef/i);
+  });
+
+  it("picks latest pull for a shortId", () => {
+    const text = `${sample}
+2025-11-26 10:00:30.000 [INF] Pull progress event: SpinnerPullProgressEvent(registry-eu-02.salad.com/sce/x@sha256:2222222222222222222222222222222222222222222222222222222222222222)[abc12345-ac2f-4f4c-bd82-e8f52ab0f6a0] - 0.40 4000000000/10000000000B attempt 1/3 @ 3000000B/s eta 2000s
+`;
+    const pulls = parsePullProgress(text);
+    const latest = latestPullForShortId(pulls, "abc12345");
+    expect(latest.progress).toBeCloseTo(0.4);
+    expect(latest.etaSec).toBe(2000);
+    expect(latest.registryHost).toBe("registry-eu-02");
   });
 });
 
@@ -99,7 +129,7 @@ describe("buildSessions", () => {
     expect(sessions.length).toBe(2);
     // newest first
     expect(sessions[0].shortId).toBe("def456");
-    expect(sessions[1].shortId).toBe("abc123");
+    expect(sessions[1].shortId).toBe("abc12345");
     expect(sessions[1].sawRunning).toBe(true);
     expect(sessions[1].sawPulling).toBe(true);
     expect(sessions[1].endedAt).toBeTruthy();

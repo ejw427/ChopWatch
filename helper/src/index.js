@@ -6,6 +6,10 @@ import { buildSnapshot } from "./snapshot.js";
 import { readChopHours } from "./chopHours.js";
 import { fetchSaladAccount, invalidateSaladApiCache } from "./saladApi.js";
 import { evaluatePhaseAlert } from "./alerts.js";
+import {
+  runDownloadBailStep,
+  manualDownloadBail,
+} from "./downloadBail.js";
 import { listSaladProcesses } from "./processes.js";
 import {
   readPreferences,
@@ -97,8 +101,36 @@ app.post("/api/settings", (req, res) => {
     "browserAlertsHint",
     "saladApiEnabled",
     "autoFillAuth",
+    "downloadBailEnabled",
   ]) {
     if (typeof body[key] === "boolean") patch[key] = body[key];
+  }
+  for (const key of [
+    "downloadBailGraceMinutes",
+    "downloadBailMaxMinutes",
+    "downloadBailStallMinutes",
+    "downloadBailMaxEtaMinutes",
+    "downloadBailEtaPersistMinutes",
+    "downloadBailCooldownMinutes",
+  ]) {
+    if (body[key] == null) continue;
+    const n = Number(body[key]);
+    if (!Number.isFinite(n)) continue;
+    let clamped;
+    if (key === "downloadBailGraceMinutes") {
+      clamped = Math.min(60, Math.max(3, Math.round(n)));
+    } else if (key === "downloadBailMaxMinutes") {
+      clamped = Math.min(180, Math.max(10, Math.round(n)));
+    } else if (key === "downloadBailStallMinutes") {
+      clamped = Math.min(60, Math.max(3, Math.round(n)));
+    } else if (key === "downloadBailMaxEtaMinutes") {
+      clamped = Math.min(240, Math.max(10, Math.round(n)));
+    } else if (key === "downloadBailEtaPersistMinutes") {
+      clamped = Math.min(60, Math.max(3, Math.round(n)));
+    } else {
+      clamped = Math.min(120, Math.max(10, Math.round(n)));
+    }
+    patch[key] = clamped;
   }
   const settings = writeSettings(patch);
   if (Object.prototype.hasOwnProperty.call(body, "saladAuthCookie")) {
@@ -177,6 +209,24 @@ app.get("/api/salad/controls", (_req, res) => {
   res.json(readPreferences());
 });
 
+app.post("/api/download-bail", (req, res) => {
+  try {
+    const procs = listSaladProcesses();
+    const prefs = readPreferences();
+    const work = readWorkloadStatus(procs.running, prefs.choppingPaused);
+    const force = req.body?.force === true;
+    const result = manualDownloadBail(work.current, prefs.choppingPaused, {
+      forcePhaseCheck: !force,
+    });
+    res.status(result.ok ? 200 : 400).json(result);
+  } catch (err) {
+    res.status(500).json({
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
 app.post("/api/salad/flags", (req, res) => {
   try {
     const result = writeAppFlags(req.body || {});
@@ -215,6 +265,7 @@ app.get("/", (_req, res) => {
       "/api/salad/controls",
       "/api/salad/flags",
       "/api/salad/preferences",
+      "/api/download-bail",
     ],
   });
 });
@@ -259,12 +310,14 @@ app.listen(PORT, HOST, async () => {
 });
 
 // Background phase watcher so Windows toasts fire even if the UI tab is closed.
+// Also runs slow-download bail (pause→resume re-roll) when enabled.
 setInterval(() => {
   try {
     const procs = listSaladProcesses();
     const prefs = readPreferences();
     const work = readWorkloadStatus(procs.running, prefs.choppingPaused);
     evaluatePhaseAlert(work.current);
+    runDownloadBailStep(work.current, prefs.choppingPaused);
   } catch (err) {
     console.error("phase watcher error:", err instanceof Error ? err.message : err);
   }

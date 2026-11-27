@@ -1,22 +1,25 @@
 export default function Sparkline({
   values = [],
-  width = 220,
-  height = 44,
+  width = 180,
+  height = 22,
   label = "GPU util",
 }) {
   const pts = (values || []).filter((n) => Number.isFinite(n));
   if (pts.length < 2) {
     return (
       <div className="sparkline empty">
-        <span className="sparkline-label">{label}</span>
-        <span className="sparkline-empty">collecting samples…</span>
+        <div className="sparkline-head">
+          <span className="sparkline-label">{label}</span>
+          <span className="sparkline-now muted">—</span>
+        </div>
+        <span className="sparkline-empty">collecting…</span>
       </div>
     );
   }
 
   const min = 0;
   const max = 100;
-  const pad = 2;
+  const pad = 1;
   const innerW = width - pad * 2;
   const innerH = height - pad * 2;
   const step = pts.length === 1 ? 0 : innerW / (pts.length - 1);
@@ -54,7 +57,7 @@ export default function Sparkline({
           points={line}
           fill="none"
           stroke="#b6f26d"
-          strokeWidth="2"
+          strokeWidth="1.75"
           strokeLinejoin="round"
           strokeLinecap="round"
         />

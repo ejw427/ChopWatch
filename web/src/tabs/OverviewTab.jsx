@@ -7,6 +7,8 @@ import DetailModal from "../DetailModal.jsx";
 import InfoTip from "../InfoTip.jsx";
 import ChopCommandBar from "../ChopCommandBar.jsx";
 import {
+  formatBytePair,
+  formatBytesPerSec,
   formatDuration,
   formatGiBFromMiB,
   formatMemPairFromMiB,
@@ -68,6 +70,11 @@ function money(v) {
   return `$${Number(v).toFixed(2)}`;
 }
 
+function moneyPerHour(predictedPerDay) {
+  if (predictedPerDay == null || !Number.isFinite(Number(predictedPerDay))) return null;
+  return Number(predictedPerDay) / 24;
+}
+
 function pickBalance(balance) {
   if (!balance || typeof balance !== "object") return null;
   if (typeof balance.currentBalance === "number") return balance.currentBalance;
@@ -94,8 +101,9 @@ export default function OverviewTab({ snap, setSnap }) {
   const [procKey, setProcKey] = useState(null);
   const [gaugeId, setGaugeId] = useState(null);
   const work = snap?.work;
-  const progress = pct(work?.progress);
-  const downloading = work?.phase === "downloading" && progress != null;
+  const progress = pct(work?.progress ?? work?.pull?.progress);
+  const pull = work?.pull || null;
+  const downloading = work?.phase === "downloading";
   const gpu0 = snap?.gpu?.gpus?.[0];
   const wallet = snap?.wallet;
   const hours = snap?.chopHours;
@@ -274,8 +282,71 @@ export default function OverviewTab({ snap, setSnap }) {
         : progress != null
           ? `${progress}%`
           : "—";
+    const pullSize =
+      pull?.bytesDone != null || pull?.bytesTotal != null
+        ? formatBytePair(pull.bytesDone, pull.bytesTotal)
+        : null;
+    const pullEta =
+      pull?.etaSec != null ? formatDuration(pull.etaSec) : null;
+    const pullSpeed =
+      pull?.bytesPerSec != null ? formatBytesPerSec(pull.bytesPerSec) : null;
 
     return [
+      ...(downloading
+        ? [
+            {
+              id: "downloadInfo",
+              label: "Download",
+              value:
+                [
+                  progress != null ? `${progress}%` : null,
+                  pullSize,
+                  pullEta ? `~${pullEta}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || "pulling…",
+              tone: "ok",
+              body:
+                "Live container image pull from Bowl SpinnerPullProgressEvent lines: percent, bytes done/total, Salad’s ETA, and transfer rate. Image digests and customer workload IDs are not shown. Downloads are unpaid until Running.",
+              rows: [
+                {
+                  label: "Progress",
+                  value: progress != null ? `${progress}%` : "—",
+                },
+                { label: "Size", value: pullSize || "—" },
+                { label: "ETA", value: pullEta ? `~${pullEta}` : "—" },
+                { label: "Speed", value: pullSpeed || "—" },
+                {
+                  label: "Attempt",
+                  value:
+                    pull?.attempt != null && pull?.attemptMax != null
+                      ? `${pull.attempt}/${pull.attemptMax}`
+                      : "—",
+                },
+                {
+                  label: "Registry",
+                  value: pull?.registryHost || "—",
+                },
+                {
+                  label: "Bowl elapsed",
+                  value: work?.elapsed || "—",
+                },
+                {
+                  label: "Pull log age",
+                  value:
+                    pull?.ageSec != null ? formatAge(pull.ageSec) : "—",
+                },
+                {
+                  label: "Auto-bail",
+                  value: snap?.downloadBail?.enabled
+                    ? snap.downloadBail.status || "on"
+                    : "off",
+                },
+              ],
+              controls: chopControls,
+            },
+          ]
+        : []),
       {
         id: "phase",
         label: "Phase",
@@ -555,6 +626,8 @@ export default function OverviewTab({ snap, setSnap }) {
     work,
     session,
     progress,
+    pull,
+    downloading,
     runningFor,
     sessionFor,
     gpu0,
@@ -563,6 +636,7 @@ export default function OverviewTab({ snap, setSnap }) {
     wallet,
     snap?.heartbeat,
     snap?.processes?.processes,
+    snap?.downloadBail,
     saladUp,
     hbFresh,
     hours,
@@ -626,34 +700,76 @@ export default function OverviewTab({ snap, setSnap }) {
   const modal = procModal || facts.find((f) => f.id === modalId) || null;
 
   const gauges = useMemo(() => {
-    const list = [];
-    if (downloading) {
-      list.push({
+    const sizeHint =
+      pull?.bytesDone != null || pull?.bytesTotal != null
+        ? formatBytePair(pull.bytesDone, pull.bytesTotal)
+        : null;
+    const etaHint =
+      pull?.etaSec != null ? `~${formatDuration(pull.etaSec)}` : null;
+    const speedHint =
+      pull?.bytesPerSec != null ? formatBytesPerSec(pull.bytesPerSec) : null;
+    const peakPullPct =
+      session?.peakProgress != null
+        ? Math.round(session.peakProgress * 100)
+        : null;
+    const downloadHint = downloading
+      ? [progress != null ? `${progress}%` : null, sizeHint, etaHint]
+          .filter(Boolean)
+          .join(" · ") || "pulling…"
+      : [work?.phase || "idle", peakPullPct != null ? `peak ${peakPullPct}%` : null]
+          .filter(Boolean)
+          .join(" · ");
+
+    const list = [
+      {
         id: "download",
         label: "Download",
-        value: progress,
+        value: downloading ? progress : null,
         theme: "violet",
-        hint: `pull ${progress}%`,
-        title: "Job image download progress from Bowl Pulling Progress(...) lines.",
-        body:
-          "How far Salad has pulled the current job image for this instance. Progress comes from Bowl Pulling Progress(...) log lines — not from GPU activity. When the pull finishes, ChopWatch moves on to initializing / running.",
+        hint: downloadHint,
+        title: "Job image download: size, speed, and ETA from Bowl pull events.",
+        body: downloading
+          ? "Live container image pull from Bowl SpinnerPullProgressEvent (bytes done/total, B/s, ETA) plus Progress(...). Not GPU activity. Image digests and customer workload IDs are hidden. Downloads are unpaid until Running — use Skip download or auto-bail to re-roll."
+          : "No active image pull right now. This gauge stays visible so you can spot unpaid download time as soon as Salad starts Pulling. Peak pull is from the latest session when available.",
         rows: [
-          { label: "Progress", value: progress != null ? `${progress}%` : "—" },
           { label: "Phase", value: work?.phase || "—" },
+          {
+            label: "Progress",
+            value: downloading && progress != null ? `${progress}%` : "—",
+          },
+          { label: "Size", value: downloading ? sizeHint || "—" : "—" },
+          { label: "ETA", value: downloading ? etaHint || "—" : "—" },
+          { label: "Speed", value: downloading ? speedHint || "—" : "—" },
+          {
+            label: "Attempt",
+            value:
+              downloading && pull?.attempt != null && pull?.attemptMax != null
+                ? `${pull.attempt}/${pull.attemptMax}`
+                : "—",
+          },
+          {
+            label: "Registry",
+            value: downloading ? pull?.registryHost || "—" : "—",
+          },
           { label: "Instance", value: work?.shortId || "—" },
           {
             label: "Peak pull",
             value:
-              session?.peakProgress != null
-                ? `${Math.round(session.peakProgress * 100)}%`
+              peakPullPct != null
+                ? `${peakPullPct}%`
                 : progress != null
                   ? `${progress}%`
                   : "—",
           },
-          { label: "Title", value: work?.title || "—" },
+          {
+            label: "Auto-bail",
+            value: snap?.downloadBail?.enabled
+              ? snap.downloadBail.status || "on"
+              : "off",
+          },
         ],
-      });
-    }
+      },
+    ];
     list.push(
       {
         id: "gpuUtil",
@@ -791,8 +907,10 @@ export default function OverviewTab({ snap, setSnap }) {
   }, [
     downloading,
     progress,
+    pull,
     work,
     session,
+    snap?.downloadBail,
     gpu0,
     gpuMemHint,
     memBusy,
@@ -854,6 +972,8 @@ export default function OverviewTab({ snap, setSnap }) {
           paused={paused}
           phase={work?.phase}
           saladUp={saladUp}
+          downloadBail={snap?.downloadBail}
+          pull={pull}
           onUpdated={refreshSnap}
         />
 
@@ -864,11 +984,64 @@ export default function OverviewTab({ snap, setSnap }) {
             {work?.title || "Waiting for snapshot…"}
           </h2>
           <p className="phase-detail">{work?.detail || snap?.product?.disclaimer}</p>
-          <div title="Recent GPU compute utilization samples from the local helper (last ~30 points).">
-            <Sparkline
-              values={snap?.gpu?.utilHistory || []}
-              label="GPU util · last samples"
-            />
+
+          <div className="hero-metrics" aria-label="Live metrics">
+            <div
+              className="hero-metric"
+              title="Recent GPU compute utilization samples from the local helper (last ~30 points)."
+            >
+              <Sparkline
+                values={snap?.gpu?.utilHistory || []}
+                label="GPU util"
+                height={22}
+                width={180}
+              />
+            </div>
+            <button
+              type="button"
+              className="hero-metric hero-earn"
+              onClick={() => {
+                setProcKey(null);
+                setModalId("wallet");
+              }}
+              title="Bowl Wallet balance and Salad’s predicted daily earnings. Click for details."
+            >
+              <div className="hero-earn-head">
+                <span className="hero-earn-label">Making</span>
+                <span className="hero-earn-age">
+                  {wallet ? formatAge(wallet.ageSec) : "no Wallet"}
+                </span>
+              </div>
+              <div className="hero-earn-primary">
+                {wallet?.predicted != null ? (
+                  <>
+                    <span className="hero-earn-amount">{money(wallet.predicted)}</span>
+                    <span className="hero-earn-unit">/day</span>
+                  </>
+                ) : (
+                  <span className="hero-earn-amount muted">—</span>
+                )}
+              </div>
+              <div className="hero-earn-meta">
+                <span>
+                  {moneyPerHour(wallet?.predicted) != null
+                    ? `${money(moneyPerHour(wallet.predicted))}/hr`
+                    : "—/hr"}
+                </span>
+                <span className="hero-earn-sep" aria-hidden="true">
+                  ·
+                </span>
+                <span>{money(wallet?.current)}</span>
+                {apiBalance != null ? (
+                  <>
+                    <span className="hero-earn-sep" aria-hidden="true">
+                      ·
+                    </span>
+                    <span>API {money(apiBalance)}</span>
+                  </>
+                ) : null}
+              </div>
+            </button>
           </div>
         </div>
 
@@ -889,8 +1062,8 @@ export default function OverviewTab({ snap, setSnap }) {
       </section>
 
       <section
-        className={`gauge-row${downloading ? " with-download" : " five"}`}
-        aria-label="Hardware gauges"
+        className="gauge-row with-download"
+        aria-label="Hardware and download gauges"
       >
         {gauges.map((g) => (
           <GaugeDial

@@ -7,6 +7,7 @@ import { readHostSnapshot } from "./host.js";
 import { readWalletAndHeartbeat } from "./wallet.js";
 import { readChopHours } from "./chopHours.js";
 import { evaluatePhaseAlert } from "./alerts.js";
+import { getDownloadBailStatus } from "./downloadBail.js";
 import { fetchSaladAccount } from "./saladApi.js";
 import { readSettings, authCookiePresent } from "./store.js";
 import { paths, exists } from "./saladPaths.js";
@@ -23,6 +24,7 @@ export async function buildSnapshot() {
   const chopHours = readChopHours();
   const alert = evaluatePhaseAlert(work.current);
   const settings = readSettings();
+  const downloadBail = getDownloadBailStatus(work.current, prefs.choppingPaused);
   const saladAccount = await fetchSaladAccount(false);
 
   return {
@@ -51,6 +53,7 @@ export async function buildSnapshot() {
     gpu,
     host,
     chopHours,
+    downloadBail,
     preferences: prefs.preferences,
     config: prefs.config,
     appFlags: prefs.appFlags,

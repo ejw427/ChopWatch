@@ -103,6 +103,7 @@ flowchart TD
   A --> F[gpu.js · host.js · disk.js]
   A --> G[chopHours.js<br/>active time · 15m gap cap]
   A --> H[alerts.js<br/>phase change · 20s debounce]
+  A --> Bail[downloadBail.js<br/>status only in snapshot]
   A --> I[saladApi.js<br/>opt-in account]
   A --> J[JSON → UI /api/snapshot]
 ```
@@ -111,12 +112,13 @@ flowchart TD
 | --- | --- | --- |
 | 1 | `processes.js` | `tasklist` for `Salad*`: Salad, Bowl.Service, Bootstrapper |
 | 2 | `preferences.js` | `%APPDATA%\Salad\config.json` flags + ProgramData prefs (allowlisted) |
-| 3 | `bowlLog.js` | `%PROGRAMDATA%\Salad\logs` → `WLInstanceState*`, sessions, finding-job inference |
+| 3 | `bowlLog.js` | `%PROGRAMDATA%\Salad\logs` → `WLInstanceState*`, `SpinnerPullProgressEvent` (size/speed/ETA), sessions, finding-job inference |
 | 4 | `wallet.js` | Bowl `Wallet: Current(...), Predicted(...)` + heartbeat age |
 | 5 | `gpu.js` / `host.js` / `disk.js` | nvidia-smi, CPU/RAM, disk (skips `blockedFiles`) |
 | 6 | `chopHours.js` | Integrate active samples; **gaps capped 15m** |
 | 7 | `alerts.js` | Phase-change debounce **20s**; toast + UI event |
-| 8 | `saladApi.js` | Opt-in balance / machines / 30-day history |
+| 8 | `downloadBail.js` | Snapshot status for slow-download bail (auto action runs in 5s watcher) |
+| 9 | `saladApi.js` | Opt-in balance / machines / 30-day history |
 
 ### Key Salad paths
 
@@ -198,6 +200,19 @@ flowchart LR
 
 Alertable phases include `running`, `downloading`, `initializing`, `finding`, `paused`, `offline`, `stopped`.
 
+### Slow-download bail (re-roll unpaid pulls)
+
+Container downloads are unpaid until **Running**, but auto-bail stays patient. When enabled (default), the 5s watcher calls `downloadBail.js` with: a **grace warm-up** (default 10m, no auto-skip — speed often ramps), then skip only if **age ≥ max** (default 30m), **ETA stays over max ETA** for a persist window (defaults 45m ETA / 8m persist; improving ETA resets the clock), or **progress stalled** (default 10m). ChopWatch writes `SALAD_CHOPPING_INDEFINITELY_PAUSED=true`, waits ~8s, then clears the flag. The **same** instance is re-rolled at most **once**, then left alone (~90m blackout) so we don’t dump jobs Salad keeps assigning. Cooldown between different skips defaults to 25m. Overview **Skip download** still forces a manual re-roll.
+
+```mermaid
+flowchart LR
+  Watcher["Helper 5s watcher"] --> Bail["downloadBail.js"]
+  Bail -->|too slow| Pause["pause flag true"]
+  Pause --> Hold["~8s hold"]
+  Hold --> Resume["pause flag false"]
+  Resume --> Finding["Salad Finding Job"]
+```
+
 ---
 
 ## Safety boundaries
@@ -225,6 +240,7 @@ flowchart TB
     A2[Read nvidia-smi / OS metrics]
     A3[Write Salad pause + prefs flags]
     A4[Opt-in Salad API with local cookie]
+    A5[Auto pause/resume for slow-download bail]
   end
 ```
 
@@ -237,10 +253,11 @@ flowchart TB
 | `GET /health` | Ready check for Electron / scripts |
 | `GET /api/snapshot` | Full dashboard payload |
 | `GET /api/chop-hours` | Chopping-hour series |
-| `GET/POST /api/settings` | Alerts / API toggles |
+| `GET/POST /api/settings` | Alerts / API toggles / download-bail thresholds |
 | `POST/DELETE /api/settings/auth/connect` | Connect Salad browser flow |
 | `GET /api/salad-account` | Opt-in official account summary |
 | `POST /api/salad/flags` · `preferences` · `controls` | Allowlisted Salad writes |
+| `POST /api/download-bail` | Manual skip slow download (pause→resume re-roll) |
 
 ---
 

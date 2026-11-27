@@ -96,6 +96,39 @@ export function formatDayStamp(ts) {
   });
 }
 
+/** Raw byte count → "1.8 GB", "420 MB". */
+export function formatBytes(bytes, digits = 1) {
+  if (bytes == null || !Number.isFinite(Number(bytes)) || Number(bytes) < 0) {
+    return "—";
+  }
+  const n = Number(bytes);
+  if (n < 1024) return `${Math.round(n)} B`;
+  if (n < 1024 ** 2) return `${(n / 1024).toFixed(0)} KB`;
+  if (n < 1024 ** 3) {
+    const mb = n / 1024 ** 2;
+    return mb >= 100 ? `${Math.round(mb)} MB` : `${mb.toFixed(digits)} MB`;
+  }
+  const gb = n / 1024 ** 3;
+  if (gb >= 100) return `${Math.round(gb)} GB`;
+  if (gb >= 10) return `${gb.toFixed(1)} GB`;
+  return `${gb.toFixed(Math.max(digits, 2))} GB`;
+}
+
+/** Bytes/sec → "2.4 MB/s". */
+export function formatBytesPerSec(bps) {
+  if (bps == null || !Number.isFinite(Number(bps)) || Number(bps) < 0) {
+    return "—";
+  }
+  return `${formatBytes(bps)}/s`;
+}
+
+/** Done/total byte pair. */
+export function formatBytePair(done, total) {
+  if (done == null && total == null) return "—";
+  if (total == null) return formatBytes(done);
+  return `${formatBytes(done)} / ${formatBytes(total)}`;
+}
+
 /** Duration from seconds: "10m 5s", "2h 3m". */
 export function formatDuration(sec) {
   if (sec == null || !Number.isFinite(sec) || sec < 0) return "—";

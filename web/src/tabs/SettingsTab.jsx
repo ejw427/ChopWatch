@@ -365,6 +365,132 @@ export default function SettingsTab({ snap, setSnap }) {
       </section>
 
       <section className="panel wide">
+        <h2>Slow-download bail</h2>
+        <p className="hint">
+          Downloads make $0 until Running, but ChopWatch stays patient: a warm-up grace
+          lets speed ramp, a long ETA must persist (improving ETA cancels the timer), and
+          the same job is only re-rolled once so we don’t dump work Salad keeps assigning.
+          Manual Skip is always available on Overview while Downloading.
+        </p>
+        <div className="toggle-row">
+          <label>
+            <input
+              type="checkbox"
+              checked={snap?.settings?.downloadBailEnabled !== false}
+              disabled={busy || !snap}
+              onChange={(e) =>
+                patchSettings({ downloadBailEnabled: e.target.checked })
+              }
+            />
+            Auto-bail persistently slow unpaid downloads
+          </label>
+        </div>
+        <div className="bail-settings-grid">
+          <label className="bail-field">
+            <span>Grace / warm-up (min)</span>
+            <input
+              type="number"
+              min={3}
+              max={60}
+              disabled={busy || !snap}
+              defaultValue={snap?.settings?.downloadBailGraceMinutes ?? 10}
+              key={`grace-${snap?.settings?.downloadBailGraceMinutes ?? 10}`}
+              onBlur={(e) =>
+                patchSettings({
+                  downloadBailGraceMinutes: Number(e.target.value),
+                })
+              }
+            />
+          </label>
+          <label className="bail-field">
+            <span>Max download age (min)</span>
+            <input
+              type="number"
+              min={10}
+              max={180}
+              disabled={busy || !snap}
+              defaultValue={snap?.settings?.downloadBailMaxMinutes ?? 30}
+              key={`max-${snap?.settings?.downloadBailMaxMinutes ?? 30}`}
+              onBlur={(e) =>
+                patchSettings({ downloadBailMaxMinutes: Number(e.target.value) })
+              }
+            />
+          </label>
+          <label className="bail-field">
+            <span>Max Salad ETA (min)</span>
+            <input
+              type="number"
+              min={10}
+              max={240}
+              disabled={busy || !snap}
+              defaultValue={snap?.settings?.downloadBailMaxEtaMinutes ?? 45}
+              key={`eta-${snap?.settings?.downloadBailMaxEtaMinutes ?? 45}`}
+              onBlur={(e) =>
+                patchSettings({
+                  downloadBailMaxEtaMinutes: Number(e.target.value),
+                })
+              }
+            />
+          </label>
+          <label className="bail-field">
+            <span>ETA must stay bad (min)</span>
+            <input
+              type="number"
+              min={3}
+              max={60}
+              disabled={busy || !snap}
+              defaultValue={snap?.settings?.downloadBailEtaPersistMinutes ?? 8}
+              key={`persist-${snap?.settings?.downloadBailEtaPersistMinutes ?? 8}`}
+              onBlur={(e) =>
+                patchSettings({
+                  downloadBailEtaPersistMinutes: Number(e.target.value),
+                })
+              }
+            />
+          </label>
+          <label className="bail-field">
+            <span>Stall with no progress (min)</span>
+            <input
+              type="number"
+              min={3}
+              max={60}
+              disabled={busy || !snap}
+              defaultValue={snap?.settings?.downloadBailStallMinutes ?? 10}
+              key={`stall-${snap?.settings?.downloadBailStallMinutes ?? 10}`}
+              onBlur={(e) =>
+                patchSettings({ downloadBailStallMinutes: Number(e.target.value) })
+              }
+            />
+          </label>
+          <label className="bail-field">
+            <span>Cooldown between skips (min)</span>
+            <input
+              type="number"
+              min={10}
+              max={120}
+              disabled={busy || !snap}
+              defaultValue={snap?.settings?.downloadBailCooldownMinutes ?? 25}
+              key={`cool-${snap?.settings?.downloadBailCooldownMinutes ?? 25}`}
+              onBlur={(e) =>
+                patchSettings({
+                  downloadBailCooldownMinutes: Number(e.target.value),
+                })
+              }
+            />
+          </label>
+        </div>
+        {snap?.downloadBail && (
+          <p className="hint">
+            Status: {snap.downloadBail.status}
+            {snap.downloadBail.reason ? ` (${snap.downloadBail.reason})` : ""}
+            {snap.downloadBail.lastAt
+              ? ` · last bail ${new Date(snap.downloadBail.lastAt).toLocaleString()}`
+              : ""}
+          </p>
+        )}
+      </section>
+
+      <section className="panel wide">
         <h2>Advanced auth</h2>
         <p className="hint">
           Fallback only. Scraping your everyday Chrome/Salad cookie files usually fails

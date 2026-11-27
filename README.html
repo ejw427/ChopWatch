@@ -133,7 +133,7 @@
     <p class="meta">Generated from <code>README.md</code> · do not edit by hand</p>
     <h1>ChopWatch</h1>
 <p>Local dashboard for Salad chopping on this PC.</p>
-<p>Shows what Salad is <em>doing</em> (lifecycle), GPU/host load, Bowl wallet lines, chopping-hour estimates, phase alerts, and — if you opt in — official Salad API balance/history. Overview popups can pause/resume chopping and edit allowlisted Salad preferences. <strong>Not</strong> customer workload identity or container contents.</p>
+<p>Shows what Salad is <em>doing</em> (lifecycle), GPU/host load, Bowl wallet lines, chopping-hour estimates, phase alerts, and — if you opt in — official Salad API balance/history. Overview can pause/resume chopping, edit allowlisted Salad preferences, and <strong>skip slow unpaid downloads</strong> (auto-bail or manual Skip) so Salad re-rolls Finding Job. <strong>Not</strong> customer workload identity or container contents.</p>
 <p><strong>Repo:</strong> https://github.com/ejw427/ChopWatch Day-to-day branch: <code>dev</code> · stable line: <code>main</code></p>
 <h2>Download (Windows)</h2>
 <p>Installers ship on <a href="https://github.com/ejw427/ChopWatch/releases">GitHub Releases</a>:</p>
@@ -150,7 +150,7 @@
 <li>Inspects encrypted workload images or job payloads</li>
 <li>Fakes Bowl job phases (Running/Pulling still come from Salad logs)</li>
 </ul>
-<p>Allowlisted writes (from Overview popups): Salad <code>SALAD_CHOPPING_INDEFINITELY_PAUSED</code> / related app flags, and workload preference levels in <code>preferences.txt</code>.</p>
+<p>Allowlisted writes (from Overview / Settings): Salad <code>SALAD_CHOPPING_INDEFINITELY_PAUSED</code> / related app flags, workload preference levels in <code>preferences.txt</code>, and automatic pause→resume for slow-download bail (tunable under Settings).</p>
 <p>Your optional Salad <code>auth</code> cookie is stored only in <code>helper/data/secrets.json</code> (gitignored). Treat it like a password.</p>
 <h2>Run</h2>
 <pre><code class="language-bash">npm install</code></pre>

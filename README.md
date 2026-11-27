@@ -2,7 +2,7 @@
 
 Local dashboard for Salad chopping on this PC.
 
-Shows what Salad is *doing* (lifecycle), GPU/host load, Bowl wallet lines, chopping-hour estimates, phase alerts, and — if you opt in — official Salad API balance/history. Overview popups can pause/resume chopping and edit allowlisted Salad preferences. **Not** customer workload identity or container contents.
+Shows what Salad is *doing* (lifecycle), GPU/host load, Bowl wallet lines, chopping-hour estimates, phase alerts, and — if you opt in — official Salad API balance/history. Overview can pause/resume chopping, edit allowlisted Salad preferences, and **skip slow unpaid downloads** (auto-bail or manual Skip) so Salad re-rolls Finding Job. **Not** customer workload identity or container contents.
 
 **Repo:** https://github.com/ejw427/ChopWatch  
 Day-to-day branch: `dev` · stable line: `main`
@@ -25,7 +25,7 @@ ChopWatch never:
 - Inspects encrypted workload images or job payloads
 - Fakes Bowl job phases (Running/Pulling still come from Salad logs)
 
-Allowlisted writes (from Overview popups): Salad `SALAD_CHOPPING_INDEFINITELY_PAUSED` / related app flags, and workload preference levels in `preferences.txt`.
+Allowlisted writes (from Overview / Settings): Salad `SALAD_CHOPPING_INDEFINITELY_PAUSED` / related app flags, workload preference levels in `preferences.txt`, and automatic pause→resume for slow-download bail (tunable under Settings).
 
 Your optional Salad `auth` cookie is stored only in `helper/data/secrets.json` (gitignored). Treat it like a password.
 

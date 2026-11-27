@@ -85,3 +85,14 @@ export async function setSaladPreferences(body) {
   if (!res.ok) throw new Error(data.error || `Helper ${res.status}`);
   return data;
 }
+
+export async function skipSlowDownload(body = {}) {
+  const res = await fetch(`${HELPER}/api/download-bail`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || data.error || `Helper ${res.status}`);
+  return data;
+}

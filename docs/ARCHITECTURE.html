@@ -263,6 +263,7 @@ resources/
   A --&gt; F[gpu.js · host.js · disk.js]
   A --&gt; G[chopHours.js&lt;br/&gt;active time · 15m gap cap]
   A --&gt; H[alerts.js&lt;br/&gt;phase change · 20s debounce]
+  A --&gt; Bail[downloadBail.js&lt;br/&gt;status only in snapshot]
   A --&gt; I[saladApi.js&lt;br/&gt;opt-in account]
   A --&gt; J[JSON → UI /api/snapshot]</pre>
 <div class="table-wrap"><table>
@@ -284,7 +285,7 @@ resources/
 <tr>
 <td>3</td>
 <td><code>bowlLog.js</code></td>
-<td><code>%PROGRAMDATA%\Salad\logs</code> → <code>WLInstanceState*</code>, sessions, finding-job inference</td>
+<td><code>%PROGRAMDATA%\Salad\logs</code> → <code>WLInstanceState*</code>, <code>SpinnerPullProgressEvent</code> (size/speed/ETA), sessions, finding-job inference</td>
 </tr>
 <tr>
 <td>4</td>
@@ -308,6 +309,11 @@ resources/
 </tr>
 <tr>
 <td>8</td>
+<td><code>downloadBail.js</code></td>
+<td>Snapshot status for slow-download bail (auto action runs in 5s watcher)</td>
+</tr>
+<tr>
+<td>9</td>
 <td><code>saladApi.js</code></td>
 <td>Opt-in balance / machines / 30-day history</td>
 </tr>
@@ -385,6 +391,14 @@ resources/
   UI[&quot;UI 3s poll&quot;] --&gt; Hint{&quot;new alert.at + browser hint?&quot;}
   Hint --&gt;|yes| Notif[Browser Notification API]</pre>
 <p>Alertable phases include <code>running</code>, <code>downloading</code>, <code>initializing</code>, <code>finding</code>, <code>paused</code>, <code>offline</code>, <code>stopped</code>.</p>
+<h3>Slow-download bail (re-roll unpaid pulls)</h3>
+<p>Container downloads are unpaid until <strong>Running</strong>, but auto-bail stays patient. When enabled (default), the 5s watcher calls <code>downloadBail.js</code> with: a <strong>grace warm-up</strong> (default 10m, no auto-skip — speed often ramps), then skip only if <strong>age ≥ max</strong> (default 30m), <strong>ETA stays over max ETA</strong> for a persist window (defaults 45m ETA / 8m persist; improving ETA resets the clock), or <strong>progress stalled</strong> (default 10m). ChopWatch writes <code>SALAD_CHOPPING_INDEFINITELY_PAUSED=true</code>, waits ~8s, then clears the flag. The <strong>same</strong> instance is re-rolled at most <strong>once</strong>, then left alone (~90m blackout) so we don’t dump jobs Salad keeps assigning. Cooldown between different skips defaults to 25m. Overview <strong>Skip download</strong> still forces a manual re-roll.</p>
+<pre class="mermaid">flowchart LR
+  Watcher[&quot;Helper 5s watcher&quot;] --&gt; Bail[&quot;downloadBail.js&quot;]
+  Bail --&gt;|too slow| Pause[&quot;pause flag true&quot;]
+  Pause --&gt; Hold[&quot;~8s hold&quot;]
+  Hold --&gt; Resume[&quot;pause flag false&quot;]
+  Resume --&gt; Finding[&quot;Salad Finding Job&quot;]</pre>
 <p>---</p>
 <h2>Safety boundaries</h2>
 <p>ChopWatch never:</p>
@@ -408,6 +422,7 @@ resources/
     A2[Read nvidia-smi / OS metrics]
     A3[Write Salad pause + prefs flags]
     A4[Opt-in Salad API with local cookie]
+    A5[Auto pause/resume for slow-download bail]
   end</pre>
 <p>---</p>
 <h2>API surface</h2>
@@ -430,7 +445,7 @@ resources/
 </tr>
 <tr>
 <td><code>GET/POST /api/settings</code></td>
-<td>Alerts / API toggles</td>
+<td>Alerts / API toggles / download-bail thresholds</td>
 </tr>
 <tr>
 <td><code>POST/DELETE /api/settings/auth/connect</code></td>
@@ -443,6 +458,10 @@ resources/
 <tr>
 <td><code>POST /api/salad/flags</code> · <code>preferences</code> · <code>controls</code></td>
 <td>Allowlisted Salad writes</td>
+</tr>
+<tr>
+<td><code>POST /api/download-bail</code></td>
+<td>Manual skip slow download (pause→resume re-roll)</td>
 </tr>
 </tbody></table></div>
 <p>---</p>
